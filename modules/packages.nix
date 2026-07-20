@@ -4,7 +4,7 @@
     # basics
     vim wget git unzip zenity
     fastfetch hyfetch pay-respects lm_sensors telegram-desktop
-    qt6.qtwayland qt5.qtwayland usbutils pciutils
+    qt6.qtwayland qt5.qtwayland usbutils pciutils btop vscodium neovim
 
     (discord.override {
       # withOpenASAR = true; # can do this here too
