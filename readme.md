@@ -3,6 +3,8 @@
 NixOS configuration and dotfiles for `transprideworkload`, a desktop workstation
 running sway on Wayland.
 
+<img width="1918" height="1080" alt="image" src="https://github.com/user-attachments/assets/f4585506-1ac4-42e7-8ce0-d12aebda0d43" />
+
 > **Note:** This configuration is a work in progress. There is a lot left to do —
 > expect rough edges, missing pieces, and things that only make sense on this
 > exact machine. Use it as a reference, not as something to deploy as-is.
