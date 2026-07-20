@@ -1,0 +1,1 @@
+/home/mind/ah-yes-zsh/.zshrc

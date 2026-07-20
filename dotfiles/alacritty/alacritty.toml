@@ -1,0 +1,12 @@
+[window]
+opacity = 0.85
+
+[font]
+size = 12
+
+[font.normal]
+family = "ComicShannsMono Nerd Font"
+
+[terminal.shell]
+program = "/run/current-system/sw/bin/zsh"
+args = ["-l"]

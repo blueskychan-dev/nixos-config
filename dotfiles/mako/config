@@ -1,0 +1,24 @@
+# palette to match the bar
+background-color=#14141cD9
+text-color=#cdd6f4
+border-color=#45475a
+border-size=2
+border-radius=10
+
+# breathing room
+width=360
+height=120
+padding=12
+margin=8
+
+font=JetBrainsMono Nerd Font 11
+
+# behavior
+default-timeout=6000
+anchor=top-right
+max-visible=4
+
+# apps' accent for urgent stuff
+[urgency=critical]
+border-color=#f38ba8
+default-timeout=0

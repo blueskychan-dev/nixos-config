@@ -1,0 +1,77 @@
+{
+  "layer": "top",
+  "position": "top",
+  "height": 34,
+  "modules-left": ["sway/workspaces", "sway/window"],
+  "modules-center": ["clock"],
+  "modules-right": [
+    "mpris",
+    "cpu",
+    "temperature",
+    "custom/gpu",
+    "memory",
+    "disk",
+    "pulseaudio",
+    "pulseaudio#mic",
+    "network",
+    "tray",
+    "custom/power"
+  ],
+
+  "sway/window": { "max-length": 50 },
+
+  "clock": { "format": "{:%a %d %b  %H:%M}" },
+
+  "mpris": {
+    "format": "{status_icon} {artist} - {title}",
+    "status-icons": { "playing": "\uf04b", "paused": "\uf04c" },
+    "max-length": 35
+  },
+
+  "cpu": { "format": "\uf4bc {usage}%", "interval": 2 },
+
+  "temperature": {
+    "format": "\uf2c9 {temperatureC}\u00b0C",
+    "critical-threshold": 85
+  },
+
+  "custom/gpu": {
+    "exec": "cat /sys/class/drm/card1/device/gpu_busy_percent",
+    "format": "\udb82\udcae {}%",
+    "interval": 2
+  },
+
+  "memory": { "format": "\uf538 {percentage}%" },
+
+  "disk": { "format": "\uf0a0 {percentage_used}%", "path": "/" },
+
+  "pulseaudio": {
+    "format": "\uf028 {volume}%",
+    "format-muted": "\uf026 muted",
+    "on-click": "pavucontrol"
+  },
+
+  "pulseaudio#mic": {
+    "format": "{format_source}",
+    "format-source": "\uf130 {volume}%",
+    "format-source-muted": "\uf131 muted",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+    "on-click-right": "pavucontrol"
+  },
+
+  "network": {
+    "format-wifi": "\uf1eb {essid}",
+    "format-ethernet": "\udb80\ude00 {ipaddr}",
+    "format-disconnected": "off",
+    "tooltip-format": "{ifname}: {ipaddr}"
+  },
+
+ "custom/power": {
+   "format": "\uf011",
+   "tooltip-format": "Left: exit sway | Right: shutdown",
+   "on-click": "swaynag -t warning -m 'Power' -B 'Shutdown' 'systemctl poweroff' -B 'Reboot' 'systemctl reboot' -B 'Exit sway' 'swaymsg exit'",
+   "on-click-right": "systemctl poweroff"
+ },
+
+  "tray": { "spacing": 8 }
+}
