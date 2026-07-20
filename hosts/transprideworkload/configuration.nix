@@ -23,7 +23,7 @@
   boot.loader.efi.canTouchEfiVariables = true;
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelModules = [ "ntsync" ];
-  boot.kernelParams = [ "reboot=efi" "amd_iommu=on" "iommu=pt" "amdgpu.ppfeaturemask=0xffffffff" "preempt=full" ];
+  boot.kernelParams = [ "reboot=acpi" "amd_iommu=on" "iommu=pt" "amdgpu.ppfeaturemask=0xffffffff" "preempt=full" ];
   boot.blacklistedKernelModules = [ "hid_uclogic" ];
 
   # Overall performance
@@ -41,6 +41,7 @@
   services.pipewire = {
     enable = true;
     pulse.enable = true;
+    alsa.enable = true;
   };
 
   # User

@@ -46,11 +46,17 @@ This machine is a daily-driver desktop workstation used for:
 
 ```
 nixos-config/
+├── flake.nix                   # entry point, pins nixpkgs unstable
+├── flake.lock
+├── sync.sh                     # copies /etc/nixos into this repo
 ├── configuration.nix           # machine core: boot, networking, user, shell
 ├── hardware-configuration.nix  # generated hardware scan
-├── packages.nix                # system packages and toolchains
-├── desktop.nix                 # sway, portals, fonts, theming
-├── gaming.nix                  # steam, gamemode, lact, tablet, app compat
+├── modules/
+│   ├── packages.nix            # system packages and toolchains
+│   ├── desktop.nix             # sway, portals, fonts, theming
+│   └── gaming.nix              # steam, gamemode, lact, tablet, app compat
+├── hosts/
+│   └── transprideworkload/     # per-host copy of the two files above
 └── dotfiles/
     ├── alacritty/              # terminal config
     ├── cava/                   # audio visualizer
@@ -71,6 +77,24 @@ sudo nixos-rebuild switch --flake /etc/nixos#transprideworkload
 ```
 
 (aliased to `nrs` in the config).
+
+The live config lives in `/etc/nixos`; this repo is a copy of it. `sync.sh`
+pulls changes back here:
+
+```
+./sync.sh --dry    # show what changed, copy nothing
+./sync.sh          # copy and git add, leaves it staged
+./sync.sh --push   # copy, commit, push
+```
+
+The file-to-destination mapping is a table at the top of the script — add a
+line to it when a new `.nix` file appears in `/etc/nixos`. The script warns
+about any it does not know about.
+
+> `configuration.nix` and `hardware-configuration.nix` currently exist twice:
+> at the repo root (where `flake.nix` points) and under `hosts/`. `sync.sh`
+> writes both so they stay identical. The `hosts/` layout is a half-finished
+> reorg — one of the two copies should eventually go away.
 
 Dotfiles are symlinked from this repository into `~/.config` by hand or with
 GNU stow. They are not yet managed declaratively.
