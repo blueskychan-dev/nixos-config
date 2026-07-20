@@ -14,6 +14,7 @@
     "pulseaudio",
     "pulseaudio#mic",
     "network",
+    "sway/language",
     "tray",
     "custom/power"
   ],
@@ -72,6 +73,11 @@
    "on-click": "swaynag -t warning -m 'Power' -B 'Shutdown' 'systemctl poweroff' -B 'Reboot' 'systemctl reboot' -B 'Exit sway' 'swaymsg exit'",
    "on-click-right": "systemctl poweroff"
  },
+
+  "sway/language": {
+    "format": "{short}",
+    "on-click": "swaymsg input type:keyboard xkb_switch_layout next"
+  },
 
   "tray": { "spacing": 8 }
 }

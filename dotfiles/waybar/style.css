@@ -17,6 +17,7 @@ window#waybar {
 #pulseaudio,
 #network,
 #clock,
+#language,
 #tray,
 #custom-power {
   padding: 0 10px;
