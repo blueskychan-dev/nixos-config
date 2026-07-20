@@ -14,13 +14,14 @@ HOST="$(hostname)"
 # source file in /etc/nixos  ->  destination path inside the repo.
 # Add a line here when you add a new .nix file to /etc/nixos.
 declare -A FILES=(
-  [configuration.nix]="configuration.nix hosts/$HOST/configuration.nix"
-  [hardware-configuration.nix]="hardware-configuration.nix hosts/$HOST/hardware-configuration.nix"
+  [configuration.nix]="hosts/$HOST/configuration.nix"
+  [hardware-configuration.nix]="hosts/$HOST/hardware-configuration.nix"
   [flake.nix]="flake.nix"
   [flake.lock]="flake.lock"
   [desktop.nix]="modules/desktop.nix"
   [packages.nix]="modules/packages.nix"
   [gaming.nix]="modules/gaming.nix"
+  [virtualisation.nix]="modules/virtualisation.nix"
 )
 
 DRY=0

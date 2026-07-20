@@ -8,6 +8,7 @@
     ./packages.nix
     ./desktop.nix
     ./gaming.nix
+    ./virtualisation.nix
   ];
 
   # Nix
@@ -49,7 +50,7 @@
     isNormalUser = true;
     shell = pkgs.zsh;
     home = "/home/mind";
-    extraGroups = [ "wheel" ];
+    extraGroups = [ "wheel" "libvirtd" ];
     packages = with pkgs; [ tree ];
   };
 
@@ -69,6 +70,34 @@
     enableSSHSupport = true;
   };
   services.openssh.enable = true;
+
+  services.syncthing = {
+    enable = true;
+    openDefaultPorts = true;
+    user = "mind";
+    group = "users";
+    dataDir = "/home/mind";               # default folder path
+    configDir = "/home/mind/.config/syncthing";
+  };
+
+  # Hard Drive Stuff
+  fileSystems."/mnt/vms-old" = {
+    device = "/dev/disk/by-uuid/aa711881-3ab6-457f-900f-d1082f0ecbd4";
+    fsType = "ext4";
+    options = [ "noatime" "nofail" ];
+  };
+
+  fileSystems."/mnt/hdd-data" = {
+    device = "/dev/disk/by-uuid/47d066ac-daac-4656-9179-43847e423cbb";
+    fsType = "ext4";
+    options = [ "noatime" "nofail" ];
+  };
+
+  fileSystems."/mnt/hdd-big-data" = {
+    device = "/dev/disk/by-uuid/b9c23c5f-479f-4640-985a-f016ff2ddc48";
+    fsType = "ext4";
+    options = [ "noatime" "nofail" ];
+  };
 
   # Never change this. Read the manual first if you think you must.
   system.stateVersion = "26.05";

@@ -4,8 +4,12 @@
     # basics
     vim wget git unzip zenity
     fastfetch hyfetch pay-respects lm_sensors telegram-desktop
-    qt6.qtwayland qt5.qtwayland
+    qt6.qtwayland qt5.qtwayland usbutils pciutils
 
+    (discord.override {
+      # withOpenASAR = true; # can do this here too
+      withVencord = true;
+    })
     # C/C++
     gcc gnumake cmake pkg-config gdb
     # Rust
