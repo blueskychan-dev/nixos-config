@@ -15,9 +15,24 @@
   # Portals
   xdg.portal = {
     enable = true;
-    wlr.enable = true;
-    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+    wlr = {
+      enable = true;
+      settings.screencast = {
+        chooser_type = "simple";
+        chooser_cmd = "${pkgs.slurp}/bin/slurp -f %o -or";
+      };
+    };
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk pkgs.xdg-desktop-portal-wlr ];
   };
+
+ xdg.portal.config = {
+   common.default = [ "gtk" ];
+   sway = {
+     default = [ "gtk" ];
+     "org.freedesktop.impl.portal.ScreenCast" = [ "wlr" ];
+     "org.freedesktop.impl.portal.Screenshot" = [ "wlr" ];
+   };
+ };
 
   programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;

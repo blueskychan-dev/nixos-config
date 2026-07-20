@@ -3,7 +3,8 @@
   environment.systemPackages = with pkgs; [
     # basics
     vim wget git unzip zenity
-    fastfetch hyfetch pay-respects lm_sensors
+    fastfetch hyfetch pay-respects lm_sensors telegram-desktop
+    qt6.qtwayland qt5.qtwayland
 
     # C/C++
     gcc gnumake cmake pkg-config gdb
