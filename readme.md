@@ -49,14 +49,12 @@ nixos-config/
 ├── flake.nix                   # entry point, pins nixpkgs unstable
 ├── flake.lock
 ├── sync.sh                     # copies /etc/nixos into this repo
-├── configuration.nix           # machine core: boot, networking, user, shell
-├── hardware-configuration.nix  # generated hardware scan
 ├── modules/
 │   ├── packages.nix            # system packages and toolchains
 │   ├── desktop.nix             # sway, portals, fonts, theming
 │   └── gaming.nix              # steam, gamemode, lact, tablet, app compat
 ├── hosts/
-│   └── transprideworkload/     # per-host copy of the two files above
+│   └── transprideworkload/     # per-host
 └── dotfiles/
     ├── alacritty/              # terminal config
     ├── cava/                   # audio visualizer
