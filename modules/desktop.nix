@@ -20,6 +20,8 @@
       settings.screencast = {
         chooser_type = "simple";
         chooser_cmd = "${pkgs.slurp}/bin/slurp -f %o -or";
+	force_mod_linear = 1;
+	max_fps = 60;
       };
     };
     extraPortals = [ pkgs.xdg-desktop-portal-gtk pkgs.xdg-desktop-portal-wlr ];

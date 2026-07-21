@@ -39,10 +39,16 @@
   i18n.defaultLocale = "en_US.UTF-8";
 
   # Audio
+  security.rtkit.enable = true; # this is required for pipewire real-time access
   services.pipewire = {
     enable = true;
     pulse.enable = true;
-    alsa.enable = true;
+    jack.enable = true;
+    audio.enable = true;
+    alsa = {
+        enable = true;
+        support32Bit = true;
+      };
   };
 
   # User
@@ -63,6 +69,7 @@
   };
 
   # Misc programs / services
+  environment.sessionVariables.NIXOS_OZONE_WL = "1";
   programs.firefox.enable = true;
   programs.mtr.enable = true;
   programs.gnupg.agent = {
@@ -70,6 +77,7 @@
     enableSSHSupport = true;
   };
   services.openssh.enable = true;
+  services.openssh.passwordAuthentication = false;
 
   services.syncthing = {
     enable = true;
