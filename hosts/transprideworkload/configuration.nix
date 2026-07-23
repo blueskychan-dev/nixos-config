@@ -9,6 +9,7 @@
     ./desktop.nix
     ./gaming.nix
     ./virtualisation.nix
+    ./tweaks.nix
   ];
 
   # Nix
@@ -77,7 +78,7 @@
     enableSSHSupport = true;
   };
   services.openssh.enable = true;
-  services.openssh.passwordAuthentication = false;
+  services.openssh.settings.PasswordAuthentication = false;
 
   services.syncthing = {
     enable = true;
@@ -86,6 +87,10 @@
     group = "users";
     dataDir = "/home/mind";               # default folder path
     configDir = "/home/mind/.config/syncthing";
+  };
+
+  services.boinc = {
+    enable = true;
   };
 
   # Hard Drive Stuff

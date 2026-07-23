@@ -22,6 +22,7 @@ declare -A FILES=(
   [packages.nix]="modules/packages.nix"
   [gaming.nix]="modules/gaming.nix"
   [virtualisation.nix]="modules/virtualisation.nix"
+  [tweaks.nix]="modules/tweaks.nix"
 )
 
 DRY=0
