@@ -9,6 +9,12 @@
     };
   };
 
+  # Distrobox stuff
+  virtualisation.podman = {
+    enable = true;
+    dockerCompat = true;
+  };
+
   # GUI manager
   programs.virt-manager.enable = true;
 
@@ -17,5 +23,6 @@
 
   environment.systemPackages = with pkgs; [
     virtiofsd          # shared folders host<->guest
+    distrobox
   ];
 }

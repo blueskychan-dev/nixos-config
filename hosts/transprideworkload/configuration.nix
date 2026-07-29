@@ -4,6 +4,7 @@
 { config, lib, pkgs, ... }:
 {
   imports = [
+    ./lact-fix.nix
     ./hardware-configuration.nix
     ./packages.nix
     ./desktop.nix
@@ -58,7 +59,7 @@
     shell = pkgs.zsh;
     home = "/home/mind";
     extraGroups = [ "wheel" "libvirtd" ];
-    packages = with pkgs; [ tree ];
+    packages = with pkgs; [ tree prismlauncher ];
   };
 
   # Shell
