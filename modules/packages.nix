@@ -4,7 +4,7 @@
     # basics
     vim wget git unzip zenity
     fastfetch hyfetch pay-respects lm_sensors telegram-desktop
-    qt6.qtwayland qt5.qtwayland usbutils pciutils btop vscodium neovim vesktop boinc
+    qt6.qtwayland qt5.qtwayland usbutils pciutils btop vscodium neovim vesktop boinc bubblewrap signal-desktop kdePackages.ark ripgrep
     # C/C++
     gcc gnumake cmake pkg-config gdb
     # Rust
@@ -17,5 +17,7 @@
     nodejs_22 yarn
     # Android
     android-tools heimdall
+    # AI
+    opencode
   ];
 }

@@ -42,7 +42,7 @@
     "interval": 2
   },
 
-  "memory": { "format": "\uf538 {percentage}%" },
+  "memory": { "format": "\uefc5 {percentage}%" },
 
   "disk": { "format": "\uf0a0 {percentage_used}%", "path": "/" },
 

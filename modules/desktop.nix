@@ -5,10 +5,10 @@
     enable = true;
     wrapperFeatures.gtk = true;
     extraPackages = with pkgs; [
-      swaylock swayidle wl-clipboard mako waybar
+      swaylock-effects swayidle wl-clipboard mako waybar
       alacritty foot
       rofi nemo grim slurp
-      swaybg cava pavucontrol
+      swaybg cava pavucontrol wayfreeze
     ];
   };
 
@@ -39,9 +39,18 @@
   programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;
 
+  # XDG user directories.
+  # Sway pulls in no DE module, so nothing was generating ~/.config/user-dirs.dirs.
+  # Flatpak resolves filesystem permissions like xdg-download / xdg-pictures through
+  # that file (glib's g_get_user_special_dir). When it is missing they resolve to
+  # nothing and get silently dropped, so sandboxed apps see no host dirs at all.
+  systemd.packages = [ pkgs.xdg-user-dirs ];
+  systemd.user.services.xdg-user-dirs.wantedBy = [ "graphical-session-pre.target" ];
+
   # Theming
   environment.systemPackages = with pkgs; [
     adw-gtk3 papirus-icon-theme
+    xdg-user-dirs xdg-utils
   ];
 
   # Fonts

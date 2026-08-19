@@ -4,7 +4,6 @@
 { config, lib, pkgs, ... }:
 {
   imports = [
-    ./lact-fix.nix
     ./hardware-configuration.nix
     ./packages.nix
     ./desktop.nix
@@ -26,8 +25,9 @@
   boot.loader.efi.canTouchEfiVariables = true;
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelModules = [ "ntsync" ];
-  boot.kernelParams = [ "reboot=acpi" "amd_iommu=on" "iommu=pt" "amdgpu.ppfeaturemask=0xffffffff" "preempt=full" ];
+  boot.kernelParams = [ "reboot=acpi" "amd_iommu=on" "iommu=pt" "amdgpu.ppfeaturemask=0xffffffff" "preempt=full" "kvm.ignore_msrs=1" "kvm.report_ignored_msrs=0" ];
   boot.blacklistedKernelModules = [ "hid_uclogic" ];
+  boot.supportedFilesystems = [ "f2fs" ];
 
   # Overall performance
   powerManagement.cpuFreqGovernor = "performance";
@@ -73,6 +73,7 @@
   # Misc programs / services
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
   programs.firefox.enable = true;
+  programs.nix-ld.enable = true;
   programs.mtr.enable = true;
   programs.gnupg.agent = {
     enable = true;

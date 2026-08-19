@@ -10,3 +10,8 @@ family = "ComicShannsMono Nerd Font"
 [terminal.shell]
 program = "/run/current-system/sw/bin/zsh"
 args = ["-l"]
+
+[[keyboard.bindings]]
+key = "Return"
+mods = "Shift"
+chars = "\u001B\r"

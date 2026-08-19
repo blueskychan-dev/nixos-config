@@ -17,6 +17,9 @@ font=JetBrainsMono Nerd Font 11
 default-timeout=6000
 anchor=top-right
 max-visible=4
+on-button-left=dismiss
+on-button-middle=dismiss-all
+on-button-right=invoke-default-action
 
 # apps' accent for urgent stuff
 [urgency=critical]

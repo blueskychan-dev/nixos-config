@@ -20,6 +20,19 @@
   programs.steam.enable = true;
   programs.gamemode.enable = true;
 
+  # Realtime audio (realtimeconfigquickscan fixes)
+  boot.kernel.sysctl."vm.swappiness" = 10;
+
+  # SMT off — only if you actually hit DSP spikes; halves logical cores,
+  # which you may not want on a gaming box
+  # boot.kernelParams = [ "nosmt" ];
+
+  security.pam.loginLimits = [
+    { domain = "@audio"; item = "rtprio";  type = "-"; value = "99"; }
+    { domain = "@audio"; item = "memlock"; type = "-"; value = "unlimited"; }
+  ];
+  users.users.mind.extraGroups = [ "audio" ];
+
   # App compat
   programs.appimage = {
     enable = true;

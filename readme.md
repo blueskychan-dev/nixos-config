@@ -89,13 +89,19 @@ The file-to-destination mapping is a table at the top of the script — add a
 line to it when a new `.nix` file appears in `/etc/nixos`. The script warns
 about any it does not know about.
 
+It pulls `~/.config` in the same pass: a second table maps each tracked
+`~/.config` directory to its copy under `dotfiles/`, and every file below it is
+copied recursively (editor and `*.bak` leftovers are skipped). A `dotfiles/`
+directory with no entry in that table is reported as unsynced.
+
 > `configuration.nix` and `hardware-configuration.nix` currently exist twice:
 > at the repo root (where `flake.nix` points) and under `hosts/`. `sync.sh`
 > writes both so they stay identical. The `hosts/` layout is a half-finished
 > reorg — one of the two copies should eventually go away.
 
-Dotfiles are symlinked from this repository into `~/.config` by hand or with
-GNU stow. They are not yet managed declaratively.
+Dotfiles live in `~/.config` as real files and are copied here by `sync.sh`;
+they are not yet managed declaratively. `dotfiles/zsh/` is the exception — it
+comes from `$HOME`, not `~/.config`, so it is still updated by hand.
 
 ## Notable details
 
