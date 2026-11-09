@@ -37,7 +37,7 @@ bindsym --to-code Mod1+Tab focus next
 # Focus movement
 bindsym --to-code $mod+$left  focus left
 bindsym --to-code $mod+$down  focus down
-bindsym --to-code $mod+$up    focus up
+# Mod+l is the lock screen (see Lock screen below) — focus up is Mod+Up.
 bindsym --to-code $mod+$right focus right
 bindsym --to-code $mod+Left   focus left
 bindsym --to-code $mod+Down   focus down
@@ -69,44 +69,121 @@ bindsym --to-code $mod+a focus parent
 # bindsym --to-code $mod+c focus child
 
 ### Workspaces ------------------------------------------------------
+# 10 workspaces per screen. Mod+1..0 = slot 1..10 on the FOCUSED screen.
+#   DP-1 (left)  -> 1..10      DP-2 (right) -> 11..20
+# Mod+Ctrl+1..0 jumps straight to the other screen's slots (11..20).
+set $ws ~/.config/sway/ws.sh
 workspace 1 output DP-1
 workspace 2 output DP-1
 workspace 3 output DP-1
 workspace 4 output DP-1
 workspace 5 output DP-1
-workspace 6 output DP-2
-workspace 7 output DP-2
-workspace 8 output DP-2
-workspace 9 output DP-2
-workspace 10 output DP-2
+workspace 6 output DP-1
+workspace 7 output DP-1
+workspace 8 output DP-1
+workspace 9 output DP-1
+workspace 10 output DP-1
+workspace 11 output DP-2
+workspace 12 output DP-2
+workspace 13 output DP-2
+workspace 14 output DP-2
+workspace 15 output DP-2
+workspace 16 output DP-2
+workspace 17 output DP-2
+workspace 18 output DP-2
+workspace 19 output DP-2
+workspace 20 output DP-2
 
-bindsym --to-code $mod+Shift+1 move container to workspace number 1
-bindsym --to-code $mod+Shift+2 move container to workspace number 2
-bindsym --to-code $mod+Shift+3 move container to workspace number 3
-bindsym --to-code $mod+Shift+4 move container to workspace number 4
-bindsym --to-code $mod+Shift+5 move container to workspace number 5
-bindsym --to-code $mod+Shift+6 move container to workspace number 6
-bindsym --to-code $mod+Shift+7 move container to workspace number 7
-bindsym --to-code $mod+Shift+8 move container to workspace number 8
-bindsym --to-code $mod+Shift+9 move container to workspace number 9
-bindsym --to-code $mod+Shift+0 move container to workspace number 10
+bindsym --to-code $mod+1 exec $ws focus 1
+bindsym --to-code $mod+2 exec $ws focus 2
+bindsym --to-code $mod+3 exec $ws focus 3
+bindsym --to-code $mod+4 exec $ws focus 4
+bindsym --to-code $mod+5 exec $ws focus 5
+bindsym --to-code $mod+6 exec $ws focus 6
+bindsym --to-code $mod+7 exec $ws focus 7
+bindsym --to-code $mod+8 exec $ws focus 8
+bindsym --to-code $mod+9 exec $ws focus 9
+bindsym --to-code $mod+0 exec $ws focus 10
 
-bindsym --to-code $mod+1 workspace number 1
-bindsym --to-code $mod+2 workspace number 2
-bindsym --to-code $mod+3 workspace number 3
-bindsym --to-code $mod+4 workspace number 4
-bindsym --to-code $mod+5 workspace number 5
-bindsym --to-code $mod+6 workspace number 6
-bindsym --to-code $mod+7 workspace number 7
-bindsym --to-code $mod+8 workspace number 8
-bindsym --to-code $mod+9 workspace number 9
-bindsym --to-code $mod+0 workspace number 10
+bindsym --to-code $mod+Shift+1 exec $ws move 1
+bindsym --to-code $mod+Shift+2 exec $ws move 2
+bindsym --to-code $mod+Shift+3 exec $ws move 3
+bindsym --to-code $mod+Shift+4 exec $ws move 4
+bindsym --to-code $mod+Shift+5 exec $ws move 5
+bindsym --to-code $mod+Shift+6 exec $ws move 6
+bindsym --to-code $mod+Shift+7 exec $ws move 7
+bindsym --to-code $mod+Shift+8 exec $ws move 8
+bindsym --to-code $mod+Shift+9 exec $ws move 9
+bindsym --to-code $mod+Shift+0 exec $ws move 10
+
+bindsym --to-code $mod+Ctrl+1 workspace number 11
+bindsym --to-code $mod+Ctrl+2 workspace number 12
+bindsym --to-code $mod+Ctrl+3 workspace number 13
+bindsym --to-code $mod+Ctrl+4 workspace number 14
+bindsym --to-code $mod+Ctrl+5 workspace number 15
+bindsym --to-code $mod+Ctrl+6 workspace number 16
+bindsym --to-code $mod+Ctrl+7 workspace number 17
+bindsym --to-code $mod+Ctrl+8 workspace number 18
+bindsym --to-code $mod+Ctrl+9 workspace number 19
+bindsym --to-code $mod+Ctrl+0 workspace number 20
 
 ### Session ---------------------------------------------------------
 bindsym --to-code $mod+Shift+c reload
 # sway has no "restart" like i3 — reload does the job:
 bindsym --to-code $mod+Shift+r reload
-bindsym --to-code $mod+Shift+e exec swaynag -t warning -m 'Exit sway?' -B 'Yes' 'swaymsg exit'
+bindsym --to-code $mod+Shift+e exec ~/.config/sway/powermenu.sh   # lock / log out / suspend / reboot / shut down
+
+### Media / volume ---------------------------------------------------
+# Works with any MPRIS player (Amberol, Spotify, Pear Desktop, browsers…).
+# --locked: also works while the lock screen is up.
+set $pc ~/.local/bin/pc
+bindsym --locked XF86AudioPlay  exec $pc play-pause
+bindsym --locked XF86AudioPause exec $pc play-pause
+bindsym --locked XF86AudioNext  exec $pc next
+bindsym --locked XF86AudioPrev  exec $pc previous
+bindsym --locked XF86AudioStop  exec $pc stop
+bindsym --locked XF86AudioRaiseVolume exec ~/.config/sway/vol.sh up
+bindsym --locked XF86AudioLowerVolume exec ~/.config/sway/vol.sh down
+bindsym --locked XF86AudioMute        exec ~/.config/sway/vol.sh mute
+bindsym --locked XF86AudioMicMute     exec ~/.config/sway/vol.sh micmute
+# For keyboards without media keys:
+bindsym --to-code $mod+Mod1+space exec $pc play-pause
+bindsym --to-code $mod+Mod1+Left  exec $pc previous
+bindsym --to-code $mod+Mod1+Right exec $pc next
+bindsym --to-code $mod+Mod1+Up    exec ~/.config/sway/vol.sh up
+bindsym --to-code $mod+Mod1+Down  exec ~/.config/sway/vol.sh down
+
+### Lock screen ------------------------------------------------------
+# swaylock-effects with a pre-blurred wallpaper (cached in ~/.cache/lockscreen,
+# rebuilt automatically when you change wallpaper with Mod+W).
+set $lock ~/.config/sway/lock.sh
+bindsym --to-code $mod+l exec $lock
+# Lock after 10 min idle, screens off after 15, and always lock before sleep.
+exec swayidle -w \
+    timeout 600 '$lock' \
+    timeout 900 'swaymsg "output * power off"' resume 'swaymsg "output * power on"' \
+    before-sleep '$lock'
+
+### Extras -----------------------------------------------------------
+# Clipboard history (cliphist): Mod+Shift+V to pick, text and images
+exec wl-paste --type text  --watch cliphist store
+exec wl-paste --type image --watch cliphist store
+bindsym --to-code $mod+Shift+v exec cliphist list | rofi -dmenu -i -p "󰅍" -display-columns 2 | cliphist decode | wl-copy
+
+# Volume pop-up (SwayOSD) — vol.sh falls back to plain wpctl if it isn't running
+exec swayosd-server
+
+# Night light: warmer screen after sunset in Nonthaburi
+exec wlsunset -l 13.86 -L 100.51 -t 4000 -T 6500
+
+# Gaps between tiled windows (none when a window is alone)
+gaps inner 6
+gaps outer 2
+smart_gaps on
+
+### Guide ------------------------------------------------------------
+# Super+? (Super+Shift+/): the shortcut book. In a terminal: `keys`
+bindsym --to-code $mod+Shift+slash exec ~/.local/bin/keys --rofi
 
 ### Resize mode ------------------------------------------------------
 mode "resize" {
@@ -144,14 +221,58 @@ focus_follows_mouse no
 bar {
     swaybar_command waybar
 }
+# Keyring: the login screen (PAM) starts + unlocks gnome-keyring; --start hooks that
+# already-unlocked daemon into this session's D-Bus so apps don't spawn a locked one.
+exec gnome-keyring-daemon --start --components=secrets
 exec mako
+# At login: terminal (with the MOTD) on the main 320 Hz screen, mouse there too.
+# Outputs start in random order, so focusing DP-1 at startup races; instead the
+# terminal gets its own app_id and is moved to DP-1 the moment it appears.
+exec alacritty --class login-term
+for_window [app_id="login-term"] move container to output DP-1, focus, move position center
+exec swaymsg seat seat0 cursor set 960 540
+# Notifications: close all / bring back the last one
+bindsym --to-code $mod+Escape       exec makoctl dismiss -a
+bindsym --to-code $mod+Shift+Escape exec makoctl restore
+# Notification history
+bindsym --to-code $mod+Shift+n exec ~/.config/mako/history.sh
+# Toggle Do Not Disturb
+bindsym --to-code $mod+Shift+d exec ~/.config/mako/status.sh dnd
 
 default_border pixel 2
+# Window border colors (Catppuccin Mocha, peach focus)
+#                       border  bg      text    indicator child_border
+client.focused          #fab387 #fab387 #1e1e2e #f5c2e7   #fab387
+client.focused_inactive #45475a #313244 #cdd6f4 #45475a   #45475a
+client.unfocused        #313244 #1e1e2e #a6adc8 #313244   #313244
+client.urgent           #f38ba8 #f38ba8 #1e1e2e #f38ba8   #f38ba8
 default_floating_border pixel 2
 # optional: hide borders when only one window on the workspace
 smart_borders on
 floating_modifier $mod normal
 
-output * bg ~/Pictures/122866150_p0.png fill
+# Wallpaper: Mod+W opens the picker (~/Pictures/wallpaper + yuriwallpaper), Mod+Shift+W = random.
+# The choice is remembered via ~/.config/sway/current-wallpaper (symlink).
+output * bg ~/.config/sway/current-wallpaper fill
+bindsym --to-code $mod+w       exec ~/.config/sway/wallpaper.sh
+bindsym --to-code $mod+Shift+w exec ~/.config/sway/wallpaper.sh random
+
+### Floating by default ---------------------------------------------
+# New windows open floating, centered, at ~60% of the screen instead of
+# filling it. Mod+Shift+Space tiles one again; Mod+F is still fullscreen.
+# Browsers get a bigger floating size than the 60% default.
+for_window [all] floating enable, resize set width 60 ppt height 65 ppt, move position center
+for_window [app_id="app.zen_browser.zen"] resize set width 80 ppt height 85 ppt, move position center
+
+### Calendar popup (click the clock in waybar)
+for_window [app_id="zenity" title="^Calendar$"] floating enable, sticky enable, resize set 320 300, move position center, move up 300px
+
+### Music pop-up (click the music pill in waybar)
+for_window [app_id="rice.music.popup"] floating enable, sticky enable, border none
+
+### Godot ------------------------------------------------------------
+
+for_window [instance="Godot_Editor"] fullscreen disable
+for_window [instance="Godot_Engine"] fullscreen disable
 
 include /etc/sway/config.d/*

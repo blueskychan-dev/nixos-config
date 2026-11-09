@@ -1,0 +1,250 @@
+#!/usr/bin/env python3
+"""hw — live hardware dashboard (temps, load, clocks, GPU, RAM, disks, net).
+
+  hw          live view, refreshes every second   (q / Ctrl+C to quit)
+  hw -1       print once and exit (handy over ssh / in scripts)
+  hw -i 2     refresh every 2 seconds
+
+Reads /sys and /proc directly (no lm_sensors call), so it's cheap to leave open.
+Colours: green < 60 °C · yellow < 80 °C · red above. Bars are peach.
+"""
+import glob, os, re, select, shutil, sys, termios, time, tty
+
+PEACH, GREEN, YELLOW, RED, DIM, TEXT, BOLD, RST = (
+    "\033[38;2;250;179;135m", "\033[38;2;166;227;161m", "\033[38;2;249;226;175m",
+    "\033[38;2;243;139;168m", "\033[38;2;108;112;134m", "\033[38;2;205;214;244m", "\033[1m", "\033[0m")
+
+
+def rd(path, default=None):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return default
+
+
+def num(path, scale=1.0, default=None):
+    v = rd(path)
+    try:
+        return float(v) / scale
+    except (TypeError, ValueError):
+        return default
+
+
+def tcol(t, warn=60, hot=80):
+    if t is None:
+        return DIM
+    return GREEN if t < warn else YELLOW if t < hot else RED
+
+
+def temp(t, warn=60, hot=80):
+    return f"{tcol(t, warn, hot)}{t:5.1f}°C{RST}" if t is not None else f"{DIM}   — {RST}"
+
+
+def bar(pct, width=20):
+    pct = max(0.0, min(100.0, pct or 0.0))
+    full = int(pct / 100 * width)
+    return f"{PEACH}{'█' * full}{DIM}{'░' * (width - full)}{RST}"
+
+
+def human(b):
+    for unit in ("B", "K", "M", "G", "T"):
+        if abs(b) < 1024:
+            return f"{b:6.1f}{unit}"
+        b /= 1024
+    return f"{b:6.1f}P"
+
+
+# ── sensors ──────────────────────────────────────────────────────────
+def hwmons():
+    """{name: [(label, temp_c), ...], ...} plus raw dirs for extra values."""
+    out = {}
+    for d in sorted(glob.glob("/sys/class/hwmon/hwmon*")):
+        name = rd(f"{d}/name", "?")
+        dev = os.path.realpath(f"{d}/device") if os.path.exists(f"{d}/device") else ""
+        temps = []
+        for f in sorted(glob.glob(f"{d}/temp*_input"), key=lambda p: int(re.findall(r"\d+", os.path.basename(p))[0])):
+            idx = re.findall(r"temp(\d+)_", f)[0]
+            temps.append((rd(f"{d}/temp{idx}_label", f"temp{idx}"), num(f, 1000)))
+        out.setdefault(name, []).append({"dir": d, "dev": dev, "temps": temps})
+    return out
+
+
+def nvme_models():
+    m = {}
+    for n in glob.glob("/sys/class/nvme/nvme*"):
+        dev = os.path.realpath(f"{n}/device")
+        m[dev] = (os.path.basename(n), rd(f"{n}/model", "NVMe"))
+    return m
+
+
+# ── load ─────────────────────────────────────────────────────────────
+def cpu_times():
+    res = {}
+    for line in open("/proc/stat"):
+        if line.startswith("cpu"):
+            p = line.split()
+            vals = list(map(int, p[1:]))
+            idle = vals[3] + vals[4]
+            res[p[0]] = (sum(vals), idle)
+    return res
+
+
+def usage(a, b):
+    out = {}
+    for k in b:
+        if k in a:
+            tot, idle = b[k][0] - a[k][0], b[k][1] - a[k][1]
+            out[k] = 100.0 * (tot - idle) / tot if tot else 0.0
+    return out
+
+
+def net_bytes():
+    res = {}
+    for line in open("/proc/net/dev").readlines()[2:]:
+        name, data = line.split(":", 1)
+        f = data.split()
+        res[name.strip()] = (int(f[0]), int(f[8]))
+    return res
+
+
+def default_iface():
+    for line in open("/proc/net/route").readlines()[1:]:
+        p = line.split()
+        if p[1] == "00000000":
+            return p[0]
+    return None
+
+
+CPU_MODEL = next((l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name")), "CPU")
+
+
+def render(prev_cpu, cur_cpu, prev_net, cur_net, dt):
+    cols = shutil.get_terminal_size((100, 40)).columns
+    L = []
+    mons = hwmons()
+    use = usage(prev_cpu, cur_cpu)
+    hdr = lambda t: L.append(f"\n {BOLD}{PEACH}{t}{RST}")
+
+    # CPU
+    hdr(f"󰻠  {CPU_MODEL}")
+    k10 = {lbl: t for m in mons.get("k10temp", []) for lbl, t in m["temps"]}
+    freqs = [num(f, 1000) for f in glob.glob("/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq")]
+    freqs = [f for f in freqs if f]
+    if not freqs:   # no cpufreq driver exposed (e.g. cpufreq disabled) -> /proc/cpuinfo has MHz
+        freqs = [float(l.split(":")[1]) for l in open("/proc/cpuinfo") if l.startswith("cpu MHz")]
+    favg = sum(freqs) / len(freqs) if freqs else 0
+    fmax = max(freqs) if freqs else 0
+    L.append(f"   Load  {bar(use.get('cpu', 0), 30)} {use.get('cpu', 0):5.1f}%   "
+             f"{DIM}clock{RST} {favg/1000:.2f} GHz avg · {fmax/1000:.2f} max")
+    L.append(f"   Temp  Tctl {temp(k10.get('Tctl'), 70, 85)}   CCD1 {temp(k10.get('Tccd1'), 70, 85)}   CCD2 {temp(k10.get('Tccd2'), 70, 85)}")
+    cores = sorted((k for k in use if k != "cpu"), key=lambda c: int(c[3:]))
+    per_row = max(4, min(16, (cols - 4) // 7))
+    for i in range(0, len(cores), per_row):
+        row = "".join(f"{tcol(use[c], 50, 85)}{use[c]:5.0f}%{RST} " for c in cores[i:i + per_row])
+        L.append(f"   {DIM}{i:>2}{RST} {row}")
+
+    # GPU (amdgpu)
+    for m in mons.get("amdgpu", []):
+        dev = m["dev"]
+        t = {lbl: v for lbl, v in m["temps"]}
+        busy = num(f"{dev}/gpu_busy_percent")
+        vu, vt = num(f"{dev}/mem_info_vram_used"), num(f"{dev}/mem_info_vram_total")
+        pw = num(f"{m['dir']}/power1_average", 1e6) or num(f"{m['dir']}/power1_input", 1e6)
+        cap = num(f"{m['dir']}/power1_cap", 1e6)
+        fan = num(f"{m['dir']}/fan1_input")
+        sclk, mclk = num(f"{m['dir']}/freq1_input", 1e6), num(f"{m['dir']}/freq2_input", 1e6)
+        name = "Radeon GPU"
+        for l in os.popen(f"lspci -s {os.path.basename(dev)} 2>/dev/null"):
+            name = re.sub(r".*\[(Radeon[^\]]*)\].*", r"\1", l.strip()) or name
+        hdr(f"󰢮  {name}")
+        L.append(f"   Load  {bar(busy, 30)} {busy or 0:5.1f}%   {DIM}core{RST} {sclk or 0:.0f} MHz · {DIM}mem{RST} {mclk or 0:.0f} MHz")
+        if vu and vt:
+            L.append(f"   VRAM  {bar(100 * vu / vt, 30)} {human(vu)} / {human(vt).strip()}")
+        L.append(f"   Temp  edge {temp(t.get('edge'), 70, 90)}   junction {temp(t.get('junction'), 85, 100)}   mem {temp(t.get('mem'), 80, 95)}")
+        L.append(f"   Power {pw or 0:5.0f} W{f' / {cap:.0f} W' if cap else ''}   {DIM}fan{RST} {fan or 0:.0f} RPM")
+
+    # Memory
+    mi = {l.split(":")[0]: int(l.split()[1]) * 1024 for l in open("/proc/meminfo")}
+    used = mi["MemTotal"] - mi["MemAvailable"]
+    sw_used = mi["SwapTotal"] - mi["SwapFree"]
+    hdr("󰍛  Memory")
+    L.append(f"   RAM   {bar(100 * used / mi['MemTotal'], 30)} {human(used)} / {human(mi['MemTotal']).strip()}")
+    if mi["SwapTotal"]:
+        L.append(f"   Swap  {bar(100 * sw_used / mi['SwapTotal'], 30)} {human(sw_used)} / {human(mi['SwapTotal']).strip()}")
+
+    # Storage
+    hdr("󰋊  Storage")
+    models = nvme_models()
+    for m in mons.get("nvme", []):
+        key = next((d for d in models if m["dev"].startswith(d) or d.startswith(m["dev"])), None)
+        nm, model = models.get(key, ("nvme", "NVMe"))
+        t = {lbl: v for lbl, v in m["temps"]}
+        hot = max((v for v in t.values() if v), default=None)
+        L.append(f"   {nm:<6} {model[:28]:<28} {temp(t.get('Composite'), 60, 75)}  {DIM}hottest sensor{RST} {temp(hot, 70, 80)}")
+    for mp in ("/", "/home", "/mnt/hdd-big-data"):
+        if os.path.ismount(mp) or mp == "/":
+            try:
+                s = os.statvfs(mp)
+            except OSError:
+                continue
+            tot, free = s.f_blocks * s.f_frsize, s.f_bavail * s.f_frsize
+            if tot:
+                L.append(f"   {mp:<18} {bar(100 * (tot - free) / tot, 20)} {human(tot - free)} / {human(tot).strip()}")
+
+    # Board
+    wmi = [t for m in mons.get("gigabyte_wmi", []) for t in m["temps"]]
+    if wmi:
+        hdr("󰚗  Motherboard")
+        L.append("   " + "   ".join(f"{DIM}{i + 1}{RST} {temp(v, 55, 75)}" for i, (_, v) in enumerate(wmi)))
+
+    # Network
+    ifc = default_iface()
+    if ifc and ifc in cur_net and ifc in prev_net and dt > 0:
+        rx = (cur_net[ifc][0] - prev_net[ifc][0]) / dt
+        tx = (cur_net[ifc][1] - prev_net[ifc][1]) / dt
+        hdr("󰈀  Network")
+        L.append(f"   {ifc:<8} {DIM}down{RST} {human(rx)}/s   {DIM}up{RST} {human(tx)}/s")
+
+    L.append(f"\n {DIM}q quit · refreshed {time.strftime('%H:%M:%S')}{RST}")
+    return "\n".join(L)
+
+
+def main():
+    once = "-1" in sys.argv
+    interval = 1.0
+    if "-i" in sys.argv:
+        try:
+            interval = float(sys.argv[sys.argv.index("-i") + 1])
+        except (IndexError, ValueError):
+            pass
+    pc, pn, pt = cpu_times(), net_bytes(), time.time()
+    time.sleep(0.4 if once else 0.2)
+    if once:
+        print(render(pc, cpu_times(), pn, net_bytes(), time.time() - pt))
+        return
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd) if os.isatty(fd) else None
+    try:
+        if old:
+            tty.setcbreak(fd)
+        sys.stdout.write("\033[?1049h\033[?25l")  # alt screen, hide cursor
+        while True:
+            cc, cn, ct = cpu_times(), net_bytes(), time.time()
+            frame = render(pc, cc, pn, cn, ct - pt)
+            sys.stdout.write("\033[H\033[2J" + frame)
+            sys.stdout.flush()
+            pc, pn, pt = cc, cn, ct
+            r, _, _ = select.select([sys.stdin] if old else [], [], [], interval)
+            if r and sys.stdin.read(1).lower() == "q":
+                break
+    except KeyboardInterrupt:
+        pass
+    finally:
+        sys.stdout.write("\033[?25h\033[?1049l")
+        if old:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+if __name__ == "__main__":
+    main()

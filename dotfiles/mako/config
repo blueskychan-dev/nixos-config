@@ -14,14 +14,39 @@ margin=8
 font=JetBrainsMono Nerd Font 11
 
 # behavior
+max-history=50
 default-timeout=6000
 anchor=top-right
 max-visible=4
-on-button-left=dismiss
+# Left: open it (app action / URL in the text / focus the app), then close.
+# Middle: close ALL.  Right: close this one.
+# Keyboard: Mod+Escape closes all, Mod+Shift+Escape brings the last one back.
+on-button-left=exec ~/.config/mako/click.sh "$id"
 on-button-middle=dismiss-all
-on-button-right=invoke-default-action
+on-button-right=dismiss
+# log to ~/.cache/notifications.jsonl (history: Mod+Shift+N) + refresh the bell
+on-notify=exec ~/.config/mako/log.sh "$id"
 
 # apps' accent for urgent stuff
 [urgency=critical]
 border-color=#f38ba8
 default-timeout=0
+
+# Screenshots: bigger thumbnail
+[app-name=Screenshot]
+max-icon-size=96
+
+# Do Not Disturb (toggle: right-click the bell in waybar).
+# Notifications are kept quietly; critical ones still show.
+[mode=dnd]
+invisible=1
+
+[mode=dnd urgency=critical]
+invisible=0
+
+# Game mode (automatic while gamemoderun is active — see ~/.config/gamemode.ini).
+[mode=game]
+invisible=1
+
+[mode=game urgency=critical]
+invisible=0

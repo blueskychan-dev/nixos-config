@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""keys — the guide/book for this sway rice.
+
+  keys            searchable guide in the terminal (fzf; type to filter, Esc quits)
+  keys -p         print the whole book (pipe to less -R, or read it over ssh)
+  keys --rofi     pop-up version (bound to Super+Shift+/ i.e. Super+?)
+
+Sway keys are read live from ~/.config/sway/config, and terminal commands from
+the `shortcuts` list in ~/.config/zsh/shortcuts.zsh, so the guide never goes stale.
+Mouse actions (waybar, notifications) are listed by hand below in MOUSE.
+"""
+import os, re, shutil, subprocess, sys
+from collections import OrderedDict
+
+HOME = os.path.expanduser("~")
+SWAY = f"{HOME}/.config/sway/config"
+SHORTCUTS = f"{HOME}/.config/zsh/shortcuts.zsh"
+
+PEACH, DIM, TEXT, BOLD, RST = "\033[38;2;250;179;135m", "\033[38;2;108;112;134m", "\033[38;2;205;214;244m", "\033[1m", "\033[0m"
+
+# ── how commands read in the guide (first match wins) ────────────────
+DESCRIBE = [
+    (r"^exec \$term$|^exec alacritty$", "Open a terminal"),
+    (r"^exec \$menu$|rofi -show drun", "App launcher"),
+    (r"^exec nemo", "File manager (Nemo)"),
+    (r"^exec brave", "Web browser (Brave)"),
+    (r"(screenshot\.sh|\$shot) region", "Screenshot: select an area (copied + saved)"),
+    (r"(screenshot\.sh|\$shot) full", "Screenshot: whole screen (copied + saved)"),
+    (r"^kill$", "Close window"),
+    (r"^fullscreen", "Fullscreen on/off"),
+    (r"^focus next", "Next window (in this container)"),
+    (r"^focus (left|right|up|down)$", "Focus window {1}"),
+    (r"^move (left|right|up|down)$", "Move window {1}"),
+    (r"^splith", "Split: next window opens to the side"),
+    (r"^splitv", "Split: next window opens below"),
+    (r"^floating toggle", "Float / tile this window"),
+    (r"xkb_switch_layout next", "Switch keyboard layout (us ⇄ th)"),
+    (r"^focus parent", "Select the parent container"),
+    (r"^reload", "Reload sway config"),
+    (r"powermenu\.sh", "Power menu (lock, log out, suspend, reboot, shut down)"),
+    (r"play-pause", "Play / pause music"),
+    (r"\$pc next|playerctl next", "Next track"),
+    (r"\$pc previous|playerctl previous", "Previous track"),
+    (r"\$pc stop", "Stop music"),
+    (r"vol\.sh up", "Volume up"),
+    (r"vol\.sh down", "Volume down"),
+    (r"vol\.sh mute", "Mute speakers"),
+    (r"vol\.sh micmute", "Mute microphone"),
+    (r"^exec \$lock$|lock\.sh$", "Lock screen"),
+    (r"cliphist", "Clipboard history (text + images)"),
+    (r'^mode "resize"', "Resize mode (arrows / J K L O, Enter or Esc to leave)"),
+    (r"resize\s+shrink\s+width", "Narrower"),
+    (r"resize\s+grow\s+width", "Wider"),
+    (r"resize\s+shrink\s+height", "Shorter"),
+    (r"resize\s+grow\s+height", "Taller"),
+    (r'^mode "default"', "Leave resize mode"),
+    (r"makoctl dismiss -a", "Close all notifications"),
+    (r"makoctl restore", "Bring back the last notification"),
+    (r"history\.sh", "Notification history"),
+    (r"status\.sh dnd", "Do Not Disturb on/off"),
+    (r"wallpaper\.sh random", "Random wallpaper"),
+    (r"wallpaper\.sh$", "Pick a wallpaper"),
+    (r"keys --rofi", "This guide"),
+]
+
+KEYNAMES = {"Mod4": "Super", "Mod1": "Alt", "Control": "Ctrl", "Ctrl": "Ctrl", "Return": "Enter", "space": "Space",
+            "Left": "←", "Right": "→", "Up": "↑", "Down": "↓", "Escape": "Esc", "Tab": "Tab", "slash": "/",
+            "XF86AudioPlay": "Play", "XF86AudioPause": "Pause", "XF86AudioNext": "Next", "XF86AudioPrev": "Prev",
+            "XF86AudioStop": "Stop", "XF86AudioRaiseVolume": "Vol+", "XF86AudioLowerVolume": "Vol−",
+            "XF86AudioMute": "Mute", "XF86AudioMicMute": "MicMute"}
+
+MOUSE = OrderedDict([
+    ("Waybar (top bar)", [
+        ("Click date", "Calendar window (click again to close)"),
+        ("Hover date / scroll / right-click", "Quick calendar · change month · year view"),
+        ("Click 🔔", "Clear notifications (or open history when empty)"),
+        ("Middle-click 🔔", "Notification history"),
+        ("Right-click 🔔", "Do Not Disturb on/off"),
+        ("Click network", "Wi-Fi / connections (nmtui)"),
+        ("Right-click network", "Wi-Fi radio on/off"),
+        ("Click / right-click Bluetooth", "Bluetooth manager · power on/off"),
+        ("Click volume / mic", "Mixer · mute mic"),
+        ("Click us/th", "Switch keyboard layout"),
+        ("Click ⏻ / right-click ⏻", "Power menu · shut down"),
+    ]),
+    ("Notifications (pop-ups)", [
+        ("Left-click", "Open it (link, screenshot, or the app) and close"),
+        ("Middle-click", "Close all"),
+        ("Right-click", "Close this one"),
+    ]),
+    ("Windows", [
+        ("Super + drag", "Move a floating window"),
+        ("Super + right-drag", "Resize a window"),
+    ]),
+    ("Automatic", [
+        ("Idle 10 min / 15 min", "Lock screen / screens off"),
+        ("Playing a game (gamemode)", "Notifications pause until it exits"),
+        ("Clicking a screenshot notification", "Opens the image"),
+    ]),
+])
+
+
+def pretty_key(k, vars_):
+    for v, val in vars_.items():
+        k = k.replace(v, val)
+    k = k.replace("Shift+slash", "?")
+    parts = k.split("+")
+    out = []
+    for p in parts:
+        name = KEYNAMES.get(p, p)
+        out.append(name.upper() if len(name) == 1 and name.isalpha() else name)
+    return "+".join(out)
+
+
+def describe(cmd, comment):
+    for pat, text in DESCRIBE:
+        m = re.search(pat, cmd)
+        if m:
+            return text.replace("{1}", m.group(1)) if "{1}" in text else text
+    if comment:
+        return comment
+    return cmd if len(cmd) < 60 else cmd[:57] + "…"
+
+
+def sway_sections():
+    vars_, sections = {}, OrderedDict()
+    section, in_mode = "General", None
+    for raw in open(SWAY):
+        line = raw.strip()
+        m = re.match(r"^###\s+(.+?)\s*(?:-{3,}.*)?$", line)
+        if m:
+            section = re.sub(r"\s*\(.*?\)\s*", " ", m.group(1)).strip(" -")
+            continue
+        m = re.match(r"^set\s+(\$\w+)\s+(.+)$", line)
+        if m:
+            vars_[m.group(1)] = m.group(2).strip()
+            continue
+        m = re.match(r'^mode\s+"([^"]+)"\s*\{', line)
+        if m:
+            in_mode = m.group(1)
+            continue
+        if in_mode and line == "}":
+            in_mode = None
+            continue
+        if not line.startswith("bindsym"):
+            continue
+        body = re.sub(r"^(\s*--[\w-]+)+", "", line[len("bindsym"):]).strip()   # only sway's own flags
+        comment = ""
+        if "  #" in body or "\t#" in body:
+            body, comment = re.split(r"\s+#\s*", body, maxsplit=1)
+        key, _, cmd = body.partition(" ")
+        cmd = cmd.strip()
+        sec = "Resize mode (Super+R)" if in_mode == "resize" or cmd.startswith('mode "resize"') else section
+        sections.setdefault(sec, []).append((pretty_key(key, {"$mod": "Mod4", **{k: v for k, v in vars_.items() if re.fullmatch(r"\w", v)}}), cmd, comment))
+    return vars_, sections
+
+
+def collapse(rows):
+    """Merge workspace runs and keys that do the same thing."""
+    out, ws = OrderedDict(), {}
+    for key, cmd, comment in rows:
+        m = re.search(r"(?:ws\.sh|\$ws) (focus|move) (\d+)$|^workspace number (\d+)$", cmd)
+        if m:
+            kind = m.group(1) or "jump"
+            ws.setdefault(kind, []).append(key)
+            continue
+        desc = describe(cmd, comment)
+        out.setdefault(desc, []).append(key)
+    lines = []
+    labels = {"focus": "Go to workspace 1–10 on this screen", "move": "Send window to workspace 1–10 (this screen)",
+              "jump": "Jump to the right screen's workspaces (11–20)"}
+    for kind, keys in ws.items():
+        first, last = keys[0], keys[-1]
+        lines.append((f"{first} … {last.split('+')[-1]}", labels[kind]))
+    for desc, keys in out.items():
+        lines.append((" / ".join(dict.fromkeys(keys)), desc))
+    return lines
+
+
+def terminal_commands():
+    rows = []
+    try:
+        txt = open(SHORTCUTS).read()
+        block = txt[txt.index("shortcuts()"):]
+        for m in re.finditer(r'^\s+"([^"]+)"\s+"([^"]+)"', block, re.M):
+            rows.append((m.group(1), re.sub(r"\$\{\w\}", "", m.group(2))))
+    except (OSError, ValueError):
+        pass
+    return rows
+
+
+def book():
+    _, sections = sway_sections()
+    out = OrderedDict()
+    for sec, rows in sections.items():
+        out[f"Keys · {sec}"] = collapse(rows)
+    for sec, rows in MOUSE.items():
+        out[f"Mouse · {sec}"] = rows
+    out["Terminal commands (type them)"] = terminal_commands() + [("keys", "this guide  (keys -p prints it)"), ("post-reboot", "check the setup after a reboot")]
+    return out
+
+
+def print_book():
+    w = shutil.get_terminal_size((100, 40)).columns
+    kw = 34
+    print(f"\n {BOLD}{PEACH}✿ sway rice — the book{RST}   {DIM}Super = the Windows key{RST}")
+    for sec, rows in book().items():
+        print(f"\n {BOLD}{PEACH}{sec}{RST}")
+        for k, d in rows:
+            print(f"   {TEXT}{k:<{kw}}{RST} {DIM}│{RST} {d[: max(20, w - kw - 8)]}")
+    print()
+
+
+def fzf_bin():
+    return shutil.which("fzf") or f"{HOME}/.local/state/gcroots/fzf/bin/fzf"
+
+
+def interactive():
+    lines = []
+    for sec, rows in book().items():
+        short = sec.split(" · ")[-1]
+        for k, d in rows:
+            lines.append(f"{PEACH}{k:<34}{RST} {d}  {DIM}· {short}{RST}")
+    subprocess.run([fzf_bin(), "--ansi", "--reverse", "--no-sort", "--border=rounded", "--info=hidden",
+                    "--prompt=keys › ", "--header=Type to search · Esc to quit · keys -p prints the whole book",
+                    "--color=border:#45475a,pointer:#fab387,prompt:#fab387,hl:#fab387,hl+:#fab387,fg+:#cdd6f4,bg+:#313244,header:#a6adc8",
+                    "--bind=enter:ignore"], input="\n".join(lines), text=True)
+
+
+def rofi():
+    from html import escape
+    rows = []
+    for sec, items in book().items():
+        short = sec.split(" · ")[-1]
+        for k, d in items:
+            rows.append(f"<b>{escape(k.ljust(34))}</b> {escape(d)}  <span alpha='45%' size='small'>{escape(short)}</span>")
+    subprocess.run(["rofi", "-dmenu", "-i", "-markup-rows", "-p", "󰌌  keys", "-no-custom",
+                    "-theme-str", "window { width: 900px; } listview { lines: 16; }"],
+                   input="\n".join(rows), text=True, stdout=subprocess.DEVNULL)
+
+
+if __name__ == "__main__":
+    a = sys.argv[1:]
+    if "--rofi" in a:
+        rofi()
+    elif "-p" in a or not sys.stdout.isatty():
+        print_book()
+    else:
+        interactive()

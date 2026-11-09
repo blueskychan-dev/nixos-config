@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# upd — check for NixOS flake + Flatpak updates, preview what changes, pick what to apply (fzf).
+#   upd          check, then interactive menu
+#   upd -c       check only (no menu, changes nothing)
+# Tab = select · Enter = continue · Esc = quit. Nothing changes without a final "y".
+# The check writes the candidate lock to a temp file; /etc/nixos is untouched until you apply.
+set -uo pipefail
+FZF=$(command -v fzf || echo "$HOME/.local/state/gcroots/fzf/bin/fzf")
+P=$'\e[38;2;250;179;135m'; G=$'\e[38;2;166;227;161m'; Y=$'\e[38;2;249;226;175m'; RD=$'\e[38;2;243;139;168m'; D=$'\e[38;2;108;112;134m'; B=$'\e[1m'; R=$'\e[0m'
+FLAKE=/etc/nixos
+HOST=$(hostname)
+CHECK_ONLY=0; [[ ${1:-} == -c ]] && CHECK_ONLY=1
+TMP=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/upd.XXXXXX"); trap 'rm -rf "$TMP"' EXIT
+NEWLOCK=$TMP/flake.lock
+have() { command -v "$1" >/dev/null 2>&1; }
+hr()   { printf '%s── %s %s%s\n' "$D" "$1" "$(printf '─%.0s' $(seq 1 $((50 - ${#1}))))" "$R"; }
+
+# ── check: flake inputs (background) + flatpak ──────────────────────
+echo "${D}checking flake inputs and flatpak remotes…${R}"
+nix flake update --flake "$FLAKE" --output-lock-file "$NEWLOCK" >"$TMP/flake.log" 2>&1 &
+FPID=$!
+fp_sys=$(flatpak remote-ls --system --updates --columns=application,version 2>/dev/null)
+fp_usr=$(flatpak remote-ls --user   --updates --columns=application,version 2>/dev/null)
+wait $FPID; FLAKE_OK=$?
+
+echo
+hr "NixOS flake ($FLAKE)"
+NIX_N=0
+if (( FLAKE_OK != 0 )); then
+  echo "  ${RD}flake check failed:${R}"; grep -v '^warning: Git tree' "$TMP/flake.log" | tail -5 | sed 's/^/    /'
+else
+  out=$(python3 - "$FLAKE/flake.lock" "$NEWLOCK" <<'PY'
+import json, sys, datetime
+o, n = (json.load(open(p)) for p in sys.argv[1:3])
+def node(lock, name):
+    ref = lock["nodes"][lock["root"]]["inputs"][name]
+    return lock["nodes"].get(ref if isinstance(ref, str) else ref[0], {}).get("locked", {})
+d = lambda t: datetime.date.fromtimestamp(t).isoformat() if t else "?"
+for name in sorted(n["nodes"][n["root"]]["inputs"]):
+    a, b = node(o, name) if name in o["nodes"][o["root"]]["inputs"] else {}, node(n, name)
+    ra, rb = a.get("rev", a.get("narHash", "-")), b.get("rev", b.get("narHash", "-"))
+    ta, tb = a.get("lastModified", 0), b.get("lastModified", 0)
+    if ra == rb:
+        print(f"same\t{name}\t{ra[:7]}\t{d(ta)}")
+    else:
+        days = (tb - ta) // 86400 if ta and tb else "?"
+        print(f"new\t{name}\t{ra[:7]} {d(ta)} → {rb[:7]} {d(tb)}\t+{days}d")
+PY
+)
+  while IFS=$'\t' read -r st name a b; do
+    [[ -z $st ]] && continue
+    if [[ $st == new ]]; then printf "  ${Y}↑${R} %-22s %s ${G}%s${R}\n" "$name" "$a" "$b"; ((NIX_N++))
+    else printf "  ${D}✓ %-22s %s  (%s)${R}\n" "$name" "$a" "$b"; fi
+  done <<<"$out"
+  (( NIX_N == 0 )) && echo "  ${G}all inputs up to date${R}"
+fi
+
+echo
+hr "Flatpak"
+FP_N=0
+show_fp() { # $1 = label, $2 = list
+  [[ -z $2 ]] && return
+  while IFS=$'\t' read -r app ver; do
+    printf "  ${Y}↑${R} %-40s ${G}%s${R} ${D}(%s)${R}\n" "$app" "${ver:-}" "$1"; ((FP_N++))
+  done <<<"$2"
+}
+show_fp system "$fp_sys"; show_fp user "$fp_usr"
+(( FP_N == 0 )) && echo "  ${G}all flatpaks up to date${R}"
+echo
+
+(( CHECK_ONLY )) && exit 0
+if (( NIX_N == 0 && FP_N == 0 )); then echo "${G}${B}Everything is up to date.${R}"; exit 0; fi
+
+# ── menu ────────────────────────────────────────────────────────────
+TOP="nixosConfigurations.$HOST.config.system.build.toplevel"
+declare -a IDS; declare -A LABEL CMD
+add() { IDS+=("$1"); LABEL[$1]=$2; CMD[$1]=$3; }
+
+if (( NIX_N > 0 )); then
+  add preview "NixOS: preview package changes (builds new system, changes nothing)" \
+    "new=\$(nix build '$FLAKE#$TOP' --reference-lock-file '$NEWLOCK' --no-write-lock-file --no-link --print-out-paths) && { nix run nixpkgs#nvd -- diff /run/current-system \"\$new\" 2>/dev/null || nix store diff-closures /run/current-system \"\$new\"; }"
+  add switch  "NixOS: apply new flake.lock + nixos-rebuild switch" \
+    "sudo cp '$NEWLOCK' '$FLAKE/flake.lock' && sudo nixos-rebuild switch --flake '$FLAKE#$HOST'"
+  add boot    "NixOS: apply new flake.lock + nixos-rebuild boot (active after reboot)" \
+    "sudo cp '$NEWLOCK' '$FLAKE/flake.lock' && sudo nixos-rebuild boot --flake '$FLAKE#$HOST'"
+fi
+(( FP_N > 0 )) && add flatpak "Flatpak: update all ($FP_N)" \
+  "sudo flatpak update -y --system && flatpak update -y --user"
+
+choice=$(for id in "${IDS[@]}"; do printf '%s\t%s\n' "$id" "${LABEL[$id]}"; done |
+  "$FZF" --multi --ansi --delimiter='\t' --with-nth=2 --height=~40% --layout=reverse --border=rounded \
+    --prompt='upd › ' --header='Tab select · Enter continue · Esc quit' \
+    --preview='echo {1}' --preview-window=hidden | cut -f1)
+[[ -z $choice ]] && { echo "${D}nothing selected${R}"; exit 0; }
+grep -q switch <<<"$choice" && grep -q boot <<<"$choice" && choice=$(grep -v '^boot$' <<<"$choice")
+
+echo; hr "will run"
+for id in $choice; do echo "  ${P}${LABEL[$id]}${R}"; echo "    ${D}${CMD[$id]}${R}"; done
+echo; read -rp "${B}Run these? [y/N] ${R}" ok; [[ $ok == [yY] ]] || { echo "aborted"; exit 0; }
+
+for id in $choice; do
+  echo; hr "${LABEL[$id]%%:*}: $id"
+  if bash -c "${CMD[$id]}"; then echo "${G}✓ $id done${R}"; else echo "${RD}✗ $id failed${R}"; fi
+done

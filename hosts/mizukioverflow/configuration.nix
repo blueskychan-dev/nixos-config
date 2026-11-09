@@ -5,11 +5,15 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ./packages.nix
-    ./desktop.nix
-    ./gaming.nix
-    ./virtualisation.nix
-    ./tweaks.nix
+    ../../modules/packages.nix
+    ../../modules/desktop.nix
+    ../../modules/gaming.nix
+    ../../modules/virtualisation.nix
+    ../../modules/incus.nix
+    ../../modules/tweaks.nix
+    ../../modules/wireguard.nix
+    ../../modules/sunshine.nix
+    ../../modules/esp-idf.nix
   ];
 
   # Nix
@@ -18,14 +22,19 @@
 
   # Boot
   boot.loader.systemd-boot = {
-    enable = true;
+    enable = lib.mkForce false;
     configurationLimit = 3;
     consoleMode = "max";
   };
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.lanzaboote = {
+    enable = true;
+    pkiBundle = "/var/lib/sbctl";
+  };
+  environment.systemPackages = [ pkgs.sbctl ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelModules = [ "ntsync" ];
-  boot.kernelParams = [ "reboot=acpi" "amd_iommu=on" "iommu=pt" "amdgpu.ppfeaturemask=0xffffffff" "preempt=full" "kvm.ignore_msrs=1" "kvm.report_ignored_msrs=0" ];
+  boot.kernelParams = [ "reboot=acpi" "amd_iommu=on" "iommu=pt" "amdgpu.ppfeaturemask=0xffffffff" "preempt=full" "kvm.ignore_msrs=1" "kvm.report_ignored_msrs=0" "kvm_amd.avic=1"];
   boot.blacklistedKernelModules = [ "hid_uclogic" ];
   boot.supportedFilesystems = [ "f2fs" ];
 
@@ -58,7 +67,7 @@
     isNormalUser = true;
     shell = pkgs.zsh;
     home = "/home/mind";
-    extraGroups = [ "wheel" "libvirtd" ];
+    extraGroups = [ "wheel" "libvirtd" "incus-admin" ];   # incus-admin: use incus without sudo
     packages = with pkgs; [ tree prismlauncher ];
   };
 
@@ -66,7 +75,7 @@
   programs.zsh.enable = true;
   environment.shells = with pkgs; [ zsh ];
   environment.shellAliases = {
-    nrs = "sudo nixos-rebuild switch --flake /etc/nixos#mizukioverflow";
+    nrs = "(cd /etc/nixos && sudo git add -A && sudo nix flake update && sudo nixos-rebuild switch --flake .#mizukioverflow)";   # git add: flakes only see tracked files
     nixos-edit = "sudo nano /etc/nixos/configuration.nix";
   };
 
@@ -96,11 +105,6 @@
   };
 
   # Hard Drive Stuff
-  fileSystems."/mnt/vms-old" = {
-    device = "/dev/disk/by-uuid/aa711881-3ab6-457f-900f-d1082f0ecbd4";
-    fsType = "ext4";
-    options = [ "noatime" "nofail" ];
-  };
 
   fileSystems."/mnt/hdd-data" = {
     device = "/dev/disk/by-uuid/47d066ac-daac-4656-9179-43847e423cbb";
@@ -116,4 +120,5 @@
 
   # Never change this. Read the manual first if you think you must.
   system.stateVersion = "26.05";
+
 }

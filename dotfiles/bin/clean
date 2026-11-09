@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# clean — pick what to clean up (fzf, multi-select), see the exact commands, confirm, run.
+#   clean          interactive
+#   clean -n       dry run: show sizes and commands, change nothing
+# Tab = select · Enter = continue · Esc = quit. Nothing runs without a final "y".
+# Never touches: VM disk images, Incus instances/snapshots, your files.
+set -uo pipefail
+FZF=$(command -v fzf || echo "$HOME/.local/state/gcroots/fzf/bin/fzf")
+P=$'\e[38;2;250;179;135m'; G=$'\e[38;2;166;227;161m'; Y=$'\e[38;2;249;226;175m'; RD=$'\e[38;2;243;139;168m'; D=$'\e[38;2;108;112;134m'; R=$'\e[0m'
+DRY=0; [[ ${1:-} == -n ]] && DRY=1
+
+size()  { du -sh "$@" 2>/dev/null | awk '{print $1}' | tail -1; }
+sizes() { du -sch "$@" 2>/dev/null | awk 'END{print $1}'; }
+have()  { command -v "$1" >/dev/null 2>&1; }
+
+# ── items: id | label | size/info | command | risky? ────────────────
+declare -a IDS; declare -A LABEL INFO CMD RISK
+add() { IDS+=("$1"); LABEL[$1]=$2; INFO[$1]=$3; CMD[$1]=$4; RISK[$1]=${5:-}; }
+
+echo "${D}measuring…${R}" >&2
+gens=$(ls -d /nix/var/nix/profiles/system-*-link 2>/dev/null | wc -l)
+add nix-gens  "NixOS: delete old generations (keep 14 days) + garbage-collect store" \
+  "$gens generations · store $(size /nix/store)" \
+  "sudo nix-collect-garbage --delete-older-than 14d && nix-collect-garbage --delete-older-than 14d"
+add nix-opt   "NixOS: deduplicate store (nix-store --optimise, slow)" \
+  "hard-links identical files" "sudo nix-store --optimise"
+have flatpak && add flatpak "Flatpak: remove unused runtimes" \
+  "/var/lib/flatpak $(size /var/lib/flatpak)" "sudo flatpak uninstall --unused -y && flatpak uninstall --user --unused -y"
+have podman && add podman "Podman: prune stopped containers, unused images, build cache" \
+  "$(podman system df --format '{{.Reclaimable}}' 2>/dev/null | head -1 | cut -d' ' -f1) reclaimable" \
+  "podman system prune -af"
+have docker && add docker "Docker: prune stopped containers, unused images, build cache" \
+  "needs sudo to measure" "sudo docker system prune -af"
+have incus && add incus "Incus: delete downloaded images (containers keep running; re-downloads on next launch)" \
+  "$(incus image list -f csv -c f 2>/dev/null | grep -c . || echo '?') image(s)" \
+  "incus image list -f csv -c f | while read -r f; do incus image delete \"\$f\" 2>/dev/null && echo \"deleted \$f\"; done"
+add journal "System journal: keep 2 weeks" \
+  "$(journalctl --disk-usage 2>/dev/null | grep -o '[0-9.]*[KMGT]' | head -1)" \
+  "sudo journalctl --vacuum-time=2weeks"
+add coredumps "Crash dumps (systemd-coredump)" \
+  "$(size /var/lib/systemd/coredump)" "sudo find /var/lib/systemd/coredump -type f -delete"
+add trash "Empty Trash" "$(size ~/.local/share/Trash)" \
+  "rm -rf ~/.local/share/Trash/files/* ~/.local/share/Trash/info/* 2>/dev/null; true"
+add thumbs "Thumbnail cache (re-made when you browse)" "$(size ~/.cache/thumbnails)" "rm -rf ~/.cache/thumbnails/*"
+add devcache "Dev caches: pip, npm, yarn, go-build, cargo registry cache" \
+  "$(sizes ~/.cache/pip ~/.npm/_cacache ~/.cache/yarn ~/.cache/go-build ~/.cargo/registry/cache)" \
+  "rm -rf ~/.cache/pip ~/.npm/_cacache ~/.cache/yarn ~/.cache/go-build ~/.cargo/registry/cache"
+add browsers "Browser caches (close the browser first)" \
+  "$(sizes ~/.cache/mozilla ~/.cache/zen ~/.var/app/*/cache)" \
+  "rm -rf ~/.cache/mozilla/firefox/*/cache2 ~/.cache/zen/*/cache2 ~/.var/app/*/cache/* 2>/dev/null; true"
+add lockcache "Rice caches: old lock-screen blurs, osu imports" \
+  "$(sizes ~/.cache/lockscreen ~/.cache/osu-import)" \
+  "find ~/.cache/lockscreen -maxdepth 1 -type f -name '*.png' -not -samefile ~/.cache/lockscreen/current.png -delete 2>/dev/null; rm -f ~/.cache/osu-import/*.osz; true"
+add hf "Hugging Face models  ⚠ re-downloads when needed" \
+  "$(size ~/.cache/huggingface)" "rm -rf ~/.cache/huggingface/hub" risky
+add puppeteer "Puppeteer/Playwright browsers  ⚠ re-downloads on next use" \
+  "$(sizes ~/.cache/puppeteer ~/.cache/ms-playwright)" "rm -rf ~/.cache/puppeteer ~/.cache/ms-playwright" risky
+add cache-other "Other ~/.cache folders… (pick individually)" "$(size ~/.cache) total" "__submenu__"
+
+# ── pick ─────────────────────────────────────────────────────────────
+rows=$(for id in "${IDS[@]}"; do
+  mark=""; [[ -n ${RISK[$id]} ]] && mark="${Y}"
+  printf '%s\t%s%-62s%s %s%s%s\n' "$id" "$mark" "${LABEL[$id]}" "$R" "$D" "${INFO[$id]:-—}" "$R"
+done)
+picked=$(printf '%s\n' "$rows" | "$FZF" --ansi --multi --reverse --height=80% --border=rounded --info=hidden \
+  --delimiter=$'\t' --with-nth=2 --prompt='clean › ' \
+  --header=$'Tab: select · Enter: continue · Esc: quit   (yellow = re-downloads later)' \
+  --preview='id={1}; grep -m1 "^$id"$'"'"'\t'"'"' '"$HOME"'/.cache/clean-cmds | cut -f2-' --preview-window=down,3,wrap \
+  --color='border:#45475a,pointer:#fab387,prompt:#fab387,hl:#fab387,hl+:#fab387,fg+:#cdd6f4,bg+:#313244,header:#a6adc8,marker:#a6e3a1' \
+  < <(mkdir -p ~/.cache; for id in "${IDS[@]}"; do printf '%s\t%s\n' "$id" "${CMD[$id]}"; done > ~/.cache/clean-cmds; printf '%s\n' "$rows")) || exit 0
+[[ -n $picked ]] || exit 0
+mapfile -t chosen < <(cut -f1 <<<"$picked")
+
+# submenu: individual ~/.cache folders
+extra=()
+if printf '%s\n' "${chosen[@]}" | grep -qx cache-other; then
+  mapfile -t extra < <(du -sh ~/.cache/*/ 2>/dev/null | sort -rh | sed "s|$HOME/.cache/||; s|/$||" \
+    | "$FZF" --multi --reverse --height=70% --border=rounded --prompt='~/.cache › ' \
+        --header='Tab: select folders to delete · Enter: continue' | awk '{print $2}')
+fi
+
+# ── confirm ─────────────────────────────────────────────────────────
+echo; echo "${P}Will run:${R}"
+for id in "${chosen[@]}"; do
+  [[ $id == cache-other ]] && continue
+  echo "  ${G}●${R} ${LABEL[$id]}"; echo "    ${D}${CMD[$id]}${R}"
+done
+for f in "${extra[@]}"; do echo "  ${G}●${R} ~/.cache/$f"; echo "    ${D}rm -rf ~/.cache/$f${R}"; done
+echo
+if ((DRY)); then echo "${Y}dry run — nothing changed${R}"; exit 0; fi
+read -rp "Go ahead? [y/N] " ok; [[ $ok == [yY]* ]] || { echo "cancelled"; exit 0; }
+
+before=$(df --output=avail -B1 / | tail -1); before_h=$(df --output=avail -B1 /mnt/hdd-big-data 2>/dev/null | tail -1)
+for id in "${chosen[@]}"; do
+  [[ $id == cache-other ]] && continue
+  echo; echo "${P}▶ ${LABEL[$id]}${R}"
+  bash -c "${CMD[$id]}" || echo "${RD}  (finished with errors)${R}"
+done
+for f in "${extra[@]}"; do [[ -n $f && $f != */* ]] && rm -rf "$HOME/.cache/$f" && echo "${G}✓${R} ~/.cache/$f"; done
+after=$(df --output=avail -B1 / | tail -1)
+freed=$(( (after - before) )); ((freed < 0)) && freed=0
+echo; echo "${G}✓ done — freed $(numfmt --to=iec "$freed") on /${R}"

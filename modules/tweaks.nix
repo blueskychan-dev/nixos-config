@@ -29,14 +29,10 @@ boot.tmp.useTmpfs = true;
 # SSD trim
 services.fstrim.enable = true;
 
-# Interactivity-first scheduler (sched-ext) — keeps games smooth while compiling
-services.scx = {
-enable = true;
-scheduler = "scx_lavd";
-};
 
 # Documentation trims: keep man pages readable, cut the rarely-used rest
 documentation.doc.enable = false; # /share/doc files
 documentation.info.enable = false; # GNU info pages
 documentation.man.cache.enable = false;
+
 }

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# music-popup — click the music pill in waybar: art, title, seek bar, controls.
+# Click again (or click anywhere else) to close. Works with any MPRIS player.
+G=$HOME/.local/state/gcroots
+export GI_TYPELIB_PATH=$G/mpris-popup-typelibs${GI_TYPELIB_PATH:+:$GI_TYPELIB_PATH}
+exec "$G/mpris-popup-env/bin/python3" -I "$HOME/.local/share/music-popup/music_popup.py" "$@"

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# playerctl from the system if installed, otherwise the pinned copy (until reboot).
+P=$(command -v playerctl || echo "$HOME/.local/state/gcroots/playerctl/bin/playerctl")
+exec "$P" "$@"

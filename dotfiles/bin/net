@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# net — fzf menu for Wi-Fi, LAN and WireGuard (wg0 = systemd wg-quick-wg0).
+set -uo pipefail
+FZF=$(command -v fzf || echo "$HOME/.local/state/gcroots/fzf/bin/fzf")
+P=$'\e[38;2;250;179;135m'; G=$'\e[38;2;166;227;161m'; D=$'\e[38;2;108;112;134m'; RED=$'\e[38;2;243;139;168m'; R=$'\e[0m'
+fz() { "$FZF" --ansi --reverse --height=60% --border=rounded --info=hidden \
+        --color='border:#45475a,pointer:#fab387,prompt:#fab387,hl:#fab387,hl+:#fab387,fg+:#cdd6f4,bg+:#313244,header:#a6adc8' "$@"; }
+pause() { echo; read -rsn1 -p "${D}press any key…${R}"; echo; }
+
+status() {
+  local lan wifi wg radio ip4
+  lan=$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev | awk -F: '$2=="ethernet" && $3=="connected"{print $1; exit}')
+  wifi=$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev | awk -F: '$2=="wifi" && $3=="connected"{print $4; exit}')
+  radio=$(nmcli radio wifi)
+  if [[ -n $lan ]]; then ip4=$(ip -4 -br addr show "$lan" | awk '{print $3}'); echo "LAN    ${G}● connected${R} ${D}$lan $ip4${R}"
+  else echo "LAN    ${D}○ unplugged${R}"; fi
+  if [[ -n $wifi ]]; then echo "Wi-Fi  ${G}● $wifi${R}"
+  elif [[ $radio == enabled ]]; then echo "Wi-Fi  ${D}○ on, not connected${R}"
+  else echo "Wi-Fi  ${D}○ off${R}"; fi
+  if [[ -d /sys/class/net/wg0 ]]; then echo "VPN    ${G}● wg0 up${R} ${D}$(ip -4 -br addr show wg0 | awk '{print $3}')${R}"
+  else echo "VPN    ${RED}○ wg0 down${R}"; fi
+}
+
+while :; do
+  wg_toggle="WireGuard: bring wg0 UP"; [[ -d /sys/class/net/wg0 ]] && wg_toggle="WireGuard: take wg0 DOWN"
+  radio_toggle="Wi-Fi: turn ON"; [[ $(nmcli radio wifi) == enabled ]] && radio_toggle="Wi-Fi: turn OFF"
+  pick=$(printf '%s\n' \
+      "󰤨  Wi-Fi: connect to a network…" \
+      "󰖪  $radio_toggle" \
+      "󰈀  LAN: reconnect" \
+      "󰌾  $wg_toggle" \
+      "󰌾  WireGuard: peers & handshakes" \
+      "  Edit connections (nmtui)" \
+      "󰩟  Show addresses & routes" \
+    | fz --prompt='net › ' --header="$(status)") || exit 0
+  case $pick in
+    *"connect to a network"*) nmtui-connect ;;
+    *"Wi-Fi: turn ON"*)  nmcli radio wifi on ;;
+    *"Wi-Fi: turn OFF"*) nmcli radio wifi off ;;
+    *"LAN: reconnect"*)
+      dev=$(nmcli -t -f DEVICE,TYPE dev | awk -F: '$2=="ethernet"{print $1; exit}')
+      nmcli dev disconnect "$dev" >/dev/null; nmcli dev connect "$dev" && echo "${G}✓ $dev reconnected${R}"; sleep 0.8 ;;
+    *"bring wg0 UP"*)    sudo systemctl start wg-quick-wg0 && echo "${G}✓ wg0 up${R}"; sleep 0.6 ;;
+    *"take wg0 DOWN"*)   sudo systemctl stop wg-quick-wg0 && echo "${G}✓ wg0 down${R}"; sleep 0.6 ;;
+    *"peers"*)           sudo wg show wg0; pause ;;
+    *nmtui*)             nmtui ;;
+    *addresses*)         { ip -br -c addr; echo; ip -c route; } | less -R ;;
+  esac
+done

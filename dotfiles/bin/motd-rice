@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# motd-rice — ported from ThinkGay (Fedora, /usr/local/bin/motd-rice) to NixOS.
+# Runs from the end of ~/.zshrc for interactive shells.
+# Changes vs. the original:
+#   - banner from ~/.config/motd/ascii_art (falls back to /etc/ascii_art)
+#   - os-release from /etc (NixOS has no /usr/lib/os-release)
+#   - no jq: weather parsed with python3
+#   - weather cached 10 min + 2 s timeout, so new terminals open instantly
+set -uo pipefail
+
+bold=$(tput bold 2>/dev/null || true)
+reset=$(tput sgr0 2>/dev/null || true)
+COL_WIDTH=20  # left column width for labels
+
+line() {
+  printf "%-${COL_WIDTH}s %s\n" "$1" "$2"
+}
+
+purple=$(tput setaf 5 2>/dev/null || true)
+normal=$(tput sgr0 2>/dev/null || true)
+LOLCAT=$(command -v lolcat || echo "$HOME/.local/state/gcroots/lolcat/bin/lolcat")
+
+# --- ASCII banner ---
+art="$HOME/.config/motd/ascii_art"; [[ -f $art ]] || art=/etc/ascii_art
+if [[ -f $art ]]; then
+  if [[ -x $LOLCAT ]]; then "$LOLCAT" < "$art"; else cat "$art"; fi
+  echo
+fi
+
+# --- Date & time ---
+today=$(TZ=Asia/Bangkok date "+%A %d %B %Y %H:%M:%S %Z")
+time_bkk=$(TZ=Asia/Bangkok date "+%H:%M:%S %Z")
+time_syd=$(TZ=Australia/Sydney date "+%H:%M:%S %Z")
+
+line "	${purple}Today is:${normal}" "$today"
+line "	${purple}Current time:${normal}" "$time_bkk"
+line "	${purple}Alya current time:${normal}" "$time_syd"
+
+# --- System info ---
+pretty="$(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-Linux}")"
+kernel="$(uname -r)"
+arch="$(uname -m)"
+line "	${purple}Operating System:${normal}" "$pretty"
+line "	${purple}Kernel:${normal}" "Linux $kernel ($arch)"
+
+# --- CPU ---
+if command -v lscpu >/dev/null 2>&1; then
+  cpu_model="$(lscpu | awk -F: '/Model name/ {sub(/^ +/,"",$2); print $2; exit}')"
+else
+  cpu_model="$(awk -F: '/model name/ {print $2; exit}' /proc/cpuinfo | sed 's/^ *//')"
+fi
+line "	${purple}Processor:${normal}" "$cpu_model"
+
+# --- Uptime ---
+if uptime -p >/dev/null 2>&1; then
+  up_pretty="$(uptime -p | sed 's/^up //')"
+else
+  s=$(cut -d. -f1 /proc/uptime); d=$((s/86400)); h=$((s%86400/3600)); m=$((s%3600/60))
+  up_pretty="$( ((d)) && printf '%d day%s, ' $d "$( ((d>1)) && echo s)"; printf '%d hour%s, %d minute%s' $h "$( ((h!=1)) && echo s)" $m "$( ((m!=1)) && echo s)")"
+fi
+line "	${purple}Uptime:${normal}" "$up_pretty"
+
+# --- Memory & disk ---
+read -r mem_total mem_used < <(free -m | awk '/^Mem:/ {print $2, $3}')
+read -r fs_size fs_used fs_usep < <(df -h / | awk 'NR==2 {print $2, $3, $5}')
+mem_pct=$((100*mem_used/mem_total))
+line "	${purple}Memory Usage:${normal}" "Used ${mem_used} MB of ${mem_total} MB (${mem_pct}%)"
+line "	${purple}Root Usage:${normal}" "Used ${fs_used} of ${fs_size} (${fs_usep})"
+
+# --- Weather (Mueang Nonthaburi), cached ---
+lat="13.859"; lon="100.514"
+url="https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=Asia%2FBangkok"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/motd-weather.json"
+if [[ ! -s $cache ]] || [[ -n $(find "$cache" -mmin +10 2>/dev/null) ]]; then
+  json="$(curl -fsS --max-time 2 "$url" 2>/dev/null || true)"
+  [[ -n $json ]] && printf '%s' "$json" > "$cache"
+fi
+json="$(cat "$cache" 2>/dev/null || true)"
+
+w_desc_from_code() {
+  case "$1" in
+    0) echo "Clear sky" ;;
+    1|2) echo "Partly cloudy" ;;
+    3) echo "Overcast" ;;
+    45|48) echo "Fog" ;;
+    51|53|55) echo "Drizzle" ;;
+    61|63|65) echo "Rain" ;;
+    80|81|82) echo "Rain showers" ;;
+    95) echo "Thunderstorm" ;;
+    96|99) echo "Thunderstorm with hail" ;;
+    *) echo "Unknown" ;;
+  esac
+}
+
+if [[ -n "$json" ]]; then
+  read -r t h w c < <(printf '%s' "$json" | python3 -Ic '
+import json, sys
+try: cur = json.load(sys.stdin).get("current", {})
+except ValueError: cur = {}
+g = lambda k: cur.get(k, "?")
+print(g("temperature_2m"), g("relative_humidity_2m"), g("wind_speed_10m"), g("weather_code"))')
+  desc="$(w_desc_from_code "${c:-999}")"
+  line "	${purple}Weather:${normal}" "$desc, ${t}°C, RH ${h}%, Wind ${w} km/h"
+fi
+
+# --- Lab & VPN status (added on NixOS) ---
+lab=""
+if out=$(incus list -f csv -c s 2>/dev/null); then
+  lab="$(grep -c RUNNING <<<"$out")/$(grep -c . <<<"$out") containers"
+fi
+if command -v virsh >/dev/null 2>&1; then
+  vr=$(virsh -c qemu:///system list --name 2>/dev/null | grep -c .)
+  vt=$(virsh -c qemu:///system list --all --name 2>/dev/null | grep -c .)
+  lab="${lab:+$lab · }${vr}/${vt} VMs running"
+fi
+[[ -n $lab ]] && line "	${purple}Lab:${normal}" "$lab"
+if [[ -d /sys/class/net/wg0 ]]; then
+  line "	${purple}VPN:${normal}" "wg0 up ($(ip -4 -br addr show wg0 | awk '{print $3}'))"
+else
+  line "	${purple}VPN:${normal}" "wg0 down"
+fi
+
+echo
+printf "	Have a great day, %s%s%s! Also ${purple}her too~ :3${normal}\n" "$bold" "${purple}$USER${normal}" "$reset"
+printf "	%sType %sshortcuts%s for quick commands · %slab%s · %snet%s%s\n" "$(tput setaf 8 2>/dev/null)" "$purple" "$(tput setaf 8 2>/dev/null)" "$purple" "$(tput setaf 8 2>/dev/null)" "$purple" "$(tput setaf 8 2>/dev/null)" "$normal"

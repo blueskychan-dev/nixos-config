@@ -2,38 +2,82 @@
   "layer": "top",
   "position": "top",
   "height": 34,
+  // floating bar: transparent background, modules grouped into rounded pills
+  "margin-top": 6,
+  "margin-left": 8,
+  "margin-right": 8,
+  "spacing": 6,
+
   "modules-left": ["sway/workspaces", "sway/window"],
   "modules-center": ["clock"],
   "modules-right": [
     "mpris",
-    "cpu",
-    "temperature",
-    "custom/gpu",
-    "memory",
-    "disk",
-    "pulseaudio",
-    "pulseaudio#mic",
-    "network",
-    "sway/language",
-    "tray",
-    "custom/power"
+    "group/stats",
+    "group/audio",
+    "group/net",
+    "group/sys"
   ],
 
-  "sway/window": { "max-length": 50 },
+  // CPU stays visible; hover it to slide out temp / GPU / RAM / disk
+  "group/stats": {
+    "orientation": "horizontal",
+    "drawer": { "transition-duration": 250, "children-class": "stat-hidden", "transition-left-to-right": false },
+    "modules": ["cpu", "temperature", "custom/gpu", "memory", "disk"]
+  },
+  "group/audio": { "orientation": "horizontal", "modules": ["pulseaudio", "pulseaudio#mic"] },
+  "group/net":   { "orientation": "horizontal", "modules": ["custom/vpn", "network", "bluetooth"] },
+  "group/sys":   { "orientation": "horizontal", "modules": ["sway/language", "custom/notifications", "tray", "custom/power"] },
 
-  "clock": { "format": "{:%a %d %b  %H:%M}" },
+  "sway/window": { "max-length": 35, "format": "{title}", "icon": true, "icon-size": 14 },
+
+  "clock": {
+    "format": "{:%a %d %b  %H:%M}",
+    // Click: calendar window (click again to close)
+    // Hover: quick month tooltip · scroll: previous/next month · right-click: year view
+    // middle-click: back to today
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "mode-mon-col": 3,
+      "weeks-pos": "",
+      "on-scroll": 1,
+      "format": {
+        "months":   "<span color='#fab387'><b>{}</b></span>",
+        "days":     "<span color='#cdd6f4'>{}</span>",
+        "weekdays": "<span color='#a6adc8'><b>{}</b></span>",
+        "today":    "<span color='#1e1e2e' bgcolor='#fab387'><b> {} </b></span>"
+      }
+    },
+    "on-click": "~/.config/waybar/calendar.sh",
+    "actions": {
+      "on-click-right": "mode",
+      "on-click-middle": "shift_reset",
+      "on-scroll-up": "shift_down",
+      "on-scroll-down": "shift_up"
+    }
+  },
 
   "mpris": {
     "format": "{status_icon} {artist} - {title}",
     "status-icons": { "playing": "\uf04b", "paused": "\uf04c" },
-    "max-length": 35
+    "max-length": 35,
+    // click: pop-up (art, seek bar, controls) · middle: play/pause · right: next · scroll: prev/next
+    "on-click": "~/.local/bin/music-popup",
+    "on-click-middle": "playerctl play-pause || ~/.local/bin/pc play-pause",
+    "on-click-right": "~/.local/bin/pc next",
+    "on-scroll-up": "~/.local/bin/pc previous",
+    "on-scroll-down": "~/.local/bin/pc next",
+    "tooltip-format": "{player}: {artist} - {title}\nClick: player · Middle: play/pause · Right: next"
   },
 
   "cpu": { "format": "\uf4bc {usage}%", "interval": 2 },
 
   "temperature": {
+    "hwmon-path-abs": "/sys/devices/pci0000:00/0000:00:18.3/hwmon",
+    "input-filename": "temp1_input",
     "format": "\uf2c9 {temperatureC}\u00b0C",
-    "critical-threshold": 85
+    "critical-threshold": 85,
+    "interval": 2
   },
 
   "custom/gpu": {
@@ -61,22 +105,61 @@
   },
 
   "network": {
-    "format-wifi": "\uf1eb {essid}",
-    "format-ethernet": "\udb80\ude00 {ipaddr}",
-    "format-disconnected": "off",
-    "tooltip-format": "{ifname}: {ipaddr}"
+    "format-ethernet": "\udb80\ude00",
+    "format-wifi": "{icon}",
+    "format-icons": ["\udb82\udd2f", "\udb82\udd1f", "\udb82\udd22", "\udb82\udd25", "\udb82\udd28"],
+    "format-linked": "\udb80\ude02",
+    "format-disconnected": "\udb82\udd2e",
+    "format-disabled": "\udb82\udd2d",
+    "tooltip-format-ethernet": "{ifname}  {ipaddr}/{cidr}\nGateway {gwaddr}\n\uf063 {bandwidthDownBytes}  \uf062 {bandwidthUpBytes}",
+    "tooltip-format-wifi": "{essid} ({signalStrength}%, {frequency} GHz)\n{ifname}  {ipaddr}/{cidr}\n\uf063 {bandwidthDownBytes}  \uf062 {bandwidthUpBytes}",
+    "tooltip-format-disconnected": "Disconnected",
+    "interval": 3,
+    "on-click": "alacritty -e nmtui",
+    "on-click-right": "nmcli radio wifi | grep -q enabled && nmcli radio wifi off || nmcli radio wifi on"
   },
+
+  "custom/vpn": {
+    // Lock icon only while WireGuard wg0 is up; hidden otherwise.
+    "exec": "[ -d /sys/class/net/wg0 ] && printf '{\"text\":\"\\U000F033E\",\"tooltip\":\"WireGuard wg0: %s\"}\\n' \"$(ip -4 -br addr show wg0 | awk '{print $3}')\" || echo",
+    "return-type": "json",
+    "interval": 5
+  },
+
+  "bluetooth": {
+    "format": "\udb80\udcaf",
+    "format-off": "\udb80\udcb2",
+    "format-disabled": "\udb80\udcb2",
+    "format-connected": "\udb80\udcb1 {num_connections}",
+    "tooltip-format": "{controller_alias}: {status}",
+    "tooltip-format-connected": "{controller_alias}\n{device_enumerate}",
+    "tooltip-format-enumerate-connected": "{device_alias}",
+    "tooltip-format-enumerate-connected-battery": "{device_alias}  {device_battery_percentage}%",
+    "on-click": "blueman-manager",
+    "on-click-right": "bluetoothctl show | grep -q 'Powered: yes' && bluetoothctl power off || bluetoothctl power on"
+  },
+
 
  "custom/power": {
    "format": "\uf011",
-   "tooltip-format": "Left: exit sway | Right: shutdown",
-   "on-click": "swaynag -t warning -m 'Power' -B 'Shutdown' 'systemctl poweroff' -B 'Reboot' 'systemctl reboot' -B 'Exit sway' 'swaymsg exit'",
+   "tooltip-format": "Click: power menu · Right-click: shut down",
+   "on-click": "~/.config/sway/powermenu.sh",
    "on-click-right": "systemctl poweroff"
  },
 
   "sway/language": {
     "format": "{short}",
     "on-click": "swaymsg input type:keyboard xkb_switch_layout next"
+  },
+
+  "custom/notifications": {
+    "exec": "~/.config/mako/status.sh",
+    "return-type": "json",
+    "interval": 2,
+    "signal": 9,
+    "on-click": "~/.config/mako/status.sh click",
+    "on-click-middle": "~/.config/mako/history.sh",
+    "on-click-right": "~/.config/mako/status.sh dnd"
   },
 
   "tray": { "spacing": 8 }

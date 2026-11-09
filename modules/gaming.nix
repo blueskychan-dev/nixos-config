@@ -34,10 +34,16 @@
   users.users.mind.extraGroups = [ "audio" ];
 
   # App compat
-  programs.appimage = {
-    enable = true;
-    binfmt = true;
+programs.appimage = {
+  enable = true;
+  binfmt = true;
+  package = pkgs.appimage-run.override {
+    extraPkgs = pkgs: [
+      pkgs.icu
+      pkgs.openssl
+    ];
   };
+};
   services.flatpak.enable = true;
   programs.nix-ld.enable = true;
   programs.nix-ld.libraries = with pkgs; [

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# gamemode-hold <command…>
+# Keep gamemode active for as long as <command> runs, requested from OUTSIDE
+# the program. Needed for osu-winello: `gamemoderun` injects libgamemodeauto,
+# which can't find libgamemode.so inside the yawl/pressure-vessel container.
+GM=/run/wrappers/bin/gamemoded
+[ -x "$GM" ] || GM=$(command -v gamemoded)
+if [ -n "$GM" ]; then
+  "$GM" -r >/dev/null 2>&1 &   # "request gamemode and pause" until killed
+  gm=$!
+  trap 'kill "$gm" 2>/dev/null' EXIT INT TERM
+fi
+"$@"

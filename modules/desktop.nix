@@ -1,5 +1,11 @@
 { config, lib, pkgs, ... }:
 {
+  imports = [
+    ./greeter.nix   # login screen (greetd + ReGreet)
+    ./files.nix     # Nemo: trash, USB/phone mounts, thumbnails
+    ./look.nix      # Qt theme (Kvantum) + mpv / Loupe
+  ];
+
   # Sway
   programs.sway = {
     enable = true;
@@ -7,8 +13,8 @@
     extraPackages = with pkgs; [
       swaylock-effects swayidle wl-clipboard mako waybar
       alacritty foot
-      rofi nemo grim slurp
-      swaybg cava pavucontrol wayfreeze
+      rofi nemo-with-extensions grim slurp
+      swaybg cava pavucontrol wayfreeze bemenu wofi fuzzel
     ];
   };
 
@@ -24,7 +30,7 @@
 	max_fps = 60;
       };
     };
-    extraPortals = [ pkgs.xdg-desktop-portal-gtk pkgs.xdg-desktop-portal-wlr ];
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk pkgs.xdg-desktop-portal-wlr pkgs.kdePackages.xdg-desktop-portal-kde ];
   };
 
  xdg.portal.config = {
@@ -32,12 +38,24 @@
    sway = {
      default = [ "gtk" ];
      "org.freedesktop.impl.portal.ScreenCast" = [ "wlr" ];
+     "org.freedesktop.impl.portal.FileChooser" = [ "kde" ];
      "org.freedesktop.impl.portal.Screenshot" = [ "wlr" ];
    };
  };
 
+  # KDE file picker on sway: needs the Plasma platform theme or it falls back to plain QFileDialog
+  systemd.user.services.plasma-xdg-desktop-portal-kde = {
+    overrideStrategy = "asDropin";
+    environment.QT_QPA_PLATFORMTHEME = "kde";
+  };
+
   programs.dconf.enable = true;
   services.gnome.gnome-keyring.enable = true;
+
+  # Bluetooth (adapter hci0) + blueman tray/manager for the waybar button
+  hardware.bluetooth.enable = true;
+  hardware.bluetooth.powerOnBoot = true;
+  services.blueman.enable = true;
 
   # XDG user directories.
   # Sway pulls in no DE module, so nothing was generating ~/.config/user-dirs.dirs.
@@ -49,8 +67,13 @@
 
   # Theming
   environment.systemPackages = with pkgs; [
+    kdePackages.plasma-integration  # KDE platform theme for the file picker portal
     adw-gtk3 papirus-icon-theme
     xdg-user-dirs xdg-utils
+
+    slurp grim wl-clipboard
+    rofi # Note: use rofi-wayland instead of pkgs.rofi on Wayland
+    wofi bemenu fuzzel
   ];
 
   # Fonts

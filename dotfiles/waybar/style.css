@@ -1,64 +1,107 @@
+/* Waybar — floating pills (Catppuccin Mocha + peach), matches lock/login screens.
+ * Bar background is transparent; each group sits in its own rounded pill:
+ *   [workspaces] title          [clock]          [♪ music] [stats▸] [audio] [net] [sys]
+ */
+@define-color base    rgba(24, 22, 32, 0.82);
+@define-color line    rgba(255, 255, 255, 0.07);
+@define-color text    #cdd6f4;
+@define-color sub     #a6adc8;
+@define-color dim     #6c7086;
+@define-color peach   #fab387;
+@define-color rose    #f38ba8;
+@define-color green   #a6e3a1;
+
 * {
-  font-family: "JetBrainsMono Nerd Font", "Noto Sans Thai Looped";
+  font-family: "JetBrainsMono Nerd Font", "Noto Sans Thai Looped", "Noto Sans CJK JP";
   font-size: 13px;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
 }
 
-window#waybar {
-  background: rgba(20, 20, 28, 0.85);
-  color: #cdd6f4;
-}
+window#waybar { background: transparent; color: @text; }
 
-#mpris,
-#cpu,
-#temperature,
-#custom-gpu,
-#memory,
-#disk,
-#pulseaudio,
-#network,
+/* ── pills ───────────────────────────────────────────────────────── */
+#workspaces,
 #clock,
-#language,
-#tray,
-#custom-power {
-  padding: 0 10px;
+#mpris,
+#stats,
+#audio,
+#net,
+#sys {
+  background: @base;
+  border: 1px solid @line;
+  border-radius: 12px;
+  padding: 0 4px;
+  margin: 0;
 }
 
-#workspaces button {
-  padding: 0 6px;
-  color: #cdd6f4;
+/* modules inside a pill: even spacing */
+#cpu, #temperature, #custom-gpu, #memory, #disk,
+#pulseaudio, #custom-vpn, #network, #bluetooth,
+#language, #custom-notifications, #tray, #custom-power {
+  padding: 0 8px;
 }
 
-#workspaces button.focused {
-  background: #45475a;
-  border-radius: 6px;
-}
-
-#sway-window {
-  padding: 0 10px;
-}
-#workspaces {
-  margin: 0 4px;
-}
-
+/* ── left: workspaces + title ───────────────────────────────────── */
+#workspaces { padding: 0 5px; }
 #workspaces button {
   padding: 0 8px;
-  margin: 3px 2px;
-  color: #cdd6f4;
+  margin: 6px 2px;
+  min-width: 14px;
+  color: @dim;
   background: transparent;
-  border: none;
-  border-radius: 6px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
 }
+#workspaces button:hover { color: @text; background: rgba(255, 255, 255, 0.06); box-shadow: none; }
+#workspaces button.focused,
+#workspaces button.active { color: #1e1e2e; background: @peach; font-weight: bold; }
+#workspaces button.urgent  { color: #1e1e2e; background: @rose; }
 
-#workspaces button.focused {
-  background: #45475a;
-}
-
-#workspaces button.urgent {
-  background: #f38ba8;
-  color: #1e1e2e;
-}
-
+/* title: its own pill with the app icon; disappears on an empty workspace */
 #window {
-  padding: 0 12px;
-  color: #a6adc8;   /* slightly dimmer than the rest, so it reads as secondary info */
+  background: @base;
+  border: 1px solid @line;
+  border-radius: 12px;
+  padding: 0 14px 0 10px;
+  color: @sub;
 }
+#window image { margin-right: 4px; }
+window#waybar.empty #window,
+#window.empty { background: transparent; border-color: transparent; padding: 0; }
+
+/* ── centre: clock ──────────────────────────────────────────────── */
+#clock { padding: 0 16px; font-weight: bold; color: @text; }
+
+/* ── right ──────────────────────────────────────────────────────── */
+#mpris { padding: 0 14px; color: @sub; }
+#mpris.playing { color: @peach; }
+#mpris.paused  { color: @dim; }
+
+#cpu { color: @text; }
+#temperature.critical { color: @rose; }
+
+#pulseaudio.muted, #pulseaudio.source-muted { color: @dim; }
+
+#custom-vpn { color: @green; }
+#network.disconnected, #network.disabled,
+#bluetooth.off, #bluetooth.disabled { color: @dim; }
+
+#language { color: @sub; }
+#custom-notifications.has  { color: @peach; }
+#custom-notifications.none { color: @dim; }
+#custom-notifications.dnd  { color: @rose; }
+#custom-notifications.game { color: @green; }
+#tray { padding: 0 6px; }
+#tray > .needs-attention { -gtk-icon-effect: highlight; }
+#custom-power { color: @rose; padding: 0 10px 0 8px; }
+#custom-power:hover { color: @peach; }
+
+/* ── tooltips (calendar, network, …) ─────────────────────────────── */
+tooltip {
+  background: rgba(24, 22, 32, 0.96);
+  border: 1px solid #45475a;
+  border-radius: 12px;
+}
+tooltip label { color: @text; padding: 4px; }

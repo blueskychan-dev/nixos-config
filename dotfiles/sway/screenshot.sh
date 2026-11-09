@@ -19,7 +19,21 @@ dir="$HOME/Pictures/Screenshots"
 
 capture() {
     mkdir -p "$dir"
-    grim "$@" - | tee "$dir/$(date +%Y%m%d-%H%M%S).png" | wl-copy
+    local file="$dir/$(date +%Y%m%d-%H%M%S).png"
+    grim "$@" - | tee "$file" | wl-copy
+    [ -s "$file" ] && notify "$file"
+}
+
+# Notification with a thumbnail. Clicking it opens the image
+# (handled by ~/.config/mako/click.sh: app "Screenshot" -> open its icon file).
+notify() {
+    local file=$1 size
+    size=$(python3 -Ic 'import struct,sys; d=open(sys.argv[1],"rb").read(24); print("%dx%d" % struct.unpack(">II", d[16:24]))' "$file" 2>/dev/null)
+    busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications \
+        org.freedesktop.Notifications Notify susssasa{sv}i \
+        "Screenshot" 0 "$file" "Screenshot saved ♡" \
+        "Copied${size:+ · ${size/x/×}}"$'\n'"${file##*/}" \
+        0 0 6000 >/dev/null 2>&1 &
 }
 
 case "${1:-region}" in
