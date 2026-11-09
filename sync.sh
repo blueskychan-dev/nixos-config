@@ -62,6 +62,7 @@ declare -A HOME_FILES=(
   [.local/bin/motd-rice]="dotfiles/bin/motd-rice"
   [.local/bin/music-popup]="dotfiles/bin/music-popup"
   [.local/bin/net]="dotfiles/bin/net"
+  [.local/bin/nightlight]="dotfiles/bin/nightlight"
   [.local/bin/pc]="dotfiles/bin/pc"
   [.local/bin/upd]="dotfiles/bin/upd"
 )

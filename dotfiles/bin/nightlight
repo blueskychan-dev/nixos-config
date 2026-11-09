@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# nightlight — fzf menu / CLI for the wlsunset screen tint.
+#   nightlight            open the menu
+#   nightlight off|on|auto|toggle|status
+#   nightlight monitors [all | DP-1 DP-2 …]
+#   nightlight apply      (re)start wlsunset to match the saved mode — run by sway at login
+# Settings live in ~/.config/nightlight/config (MODE, TEMP, LAT, LON, OUTPUTS); location stays out of the repo.
+set -uo pipefail
+CONF="$HOME/.config/nightlight/config"
+FZF=$(command -v fzf || echo "$HOME/.local/state/gcroots/fzf/bin/fzf")
+P=$'\e[38;2;250;179;135m'; G=$'\e[38;2;166;227;161m'; D=$'\e[38;2;108;112;134m'; R=$'\e[0m'
+fz() { "$FZF" --ansi --reverse --height=60% --border=rounded --info=hidden \
+        --color='border:#45475a,pointer:#fab387,prompt:#fab387,hl:#fab387,hl+:#fab387,fg+:#cdd6f4,bg+:#313244,header:#a6adc8' "$@"; }
+
+MODE=off TEMP=4000 LAT="" LON="" OUTPUTS=""   # OUTPUTS empty = all monitors
+[[ -f $CONF ]] && source "$CONF"
+
+save() {
+  mkdir -p "${CONF%/*}"
+  printf 'MODE=%s\nTEMP=%s\nLAT=%s\nLON=%s\nOUTPUTS="%s"\n' "$MODE" "$TEMP" "$LAT" "$LON" "$OUTPUTS" > "$CONF"
+}
+
+# "DP-1<TAB>Acer Technologies VG250Q …" for every connected monitor
+list_outputs() { swaymsg -t get_outputs -p | sed -n "s/^Output \([^ ]*\) '\(.*\)'.*/\1\t\2/p"; }
+
+out_args() { local o; for o in $OUTPUTS; do printf -- '-o\n%s\n' "$o"; done; }
+
+monitors_label() {
+  [[ -z $OUTPUTS ]] && { echo "all"; return; }
+  local o name labels=()
+  for o in $OUTPUTS; do
+    name=$(list_outputs | awk -F'\t' -v o="$o" '$1==o{print $2}' | awk '{print $(NF-2)}')
+    labels+=("$o${name:+ ($name)}")
+  done
+  echo "${labels[*]}"
+}
+
+apply() {
+  pkill -x wlsunset 2>/dev/null; sleep 0.2
+  local -a o; mapfile -t o < <(out_args)
+  case $MODE in
+    off)  return 0 ;;
+    # day temp 1K above night temp = same warm tint all day (wlsunset needs high > low)
+    on)   setsid -f wlsunset "${o[@]}" -t "$TEMP" -T "$((TEMP + 1))" >/dev/null 2>&1 ;;
+    auto)
+      if [[ -z $LAT || -z $LON ]]; then
+        echo "auto needs a location: set LAT/LON in $CONF (or pick 'Set location' in the menu)" >&2; return 1
+      fi
+      setsid -f wlsunset "${o[@]}" -l "$LAT" -L "$LON" -t "$TEMP" -T 6500 >/dev/null 2>&1 ;;
+  esac
+}
+
+set_mode() { MODE=$1; save; apply; }
+
+status() {
+  local run="${D}○ not running${R}"; pgrep -x wlsunset >/dev/null && run="${G}● running${R}"
+  case $MODE in
+    off)  echo "Mode   ${D}off${R} — colors come from your monitor settings" ;;
+    on)   echo "Mode   ${P}on${R} — ${TEMP}K all the time" ;;
+    auto) echo "Mode   ${P}auto${R} — ${TEMP}K after sunset, normal by day" ;;
+  esac
+  echo "Screens ${P}$(monitors_label)${R}"
+  echo "wlsunset $run   ${D}location: ${LAT:-unset}, ${LON:-unset}${R}"
+}
+
+case ${1:-menu} in
+  off|on|auto) set_mode "$1"; exit ;;
+  toggle) [[ $MODE == off ]] && set_mode auto || set_mode off; exit ;;
+  apply)  apply; exit ;;
+  status) status; exit ;;
+  monitors)
+    shift; [[ ${1:-all} == all ]] && OUTPUTS="" || OUTPUTS="$*"
+    save; [[ $MODE != off ]] && apply; status; exit ;;
+  menu) ;;
+  *) echo "usage: nightlight [off|on|auto|toggle|apply|status|monitors [all|DP-1 …]]" >&2; exit 2 ;;
+esac
+
+while :; do
+  pick=$(printf '%s\n' \
+      "󰌶  Off — use monitor settings only" \
+      "󰖔  Auto — warm after sunset" \
+      "󰈈  On — warm all the time" \
+      "󰍹  Monitors: $(monitors_label)…" \
+      "󰔄  Warmth: ${TEMP}K…" \
+      "󰍎  Set location (for auto)…" \
+    | fz --prompt='nightlight › ' --header="$(status)") || exit 0
+  case $pick in
+    *"Off —"*)  set_mode off ;;
+    *"Auto —"*) set_mode auto ;;
+    *"On —"*)   set_mode on ;;
+    *Monitors*)
+      pick=$( { printf 'all\tevery monitor\n'; list_outputs; } \
+        | fz --multi --delimiter='\t' --with-nth=1,2 --prompt='monitors (Tab = pick several) › ' ) || continue
+      if grep -q '^all' <<<"$pick"; then OUTPUTS=""; else OUTPUTS=$(cut -f1 <<<"$pick" | tr '\n' ' ' | sed 's/ $//'); fi
+      save; [[ $MODE != off ]] && apply ;;
+    *Warmth*)
+      t=$(printf '%s\n' 3000 3500 4000 4500 5000 5500 | fz --prompt='warmth (K, lower = warmer) › ') || continue
+      TEMP=$t; save; [[ $MODE != off ]] && apply ;;
+    *location*)
+      read -rp "latitude  [${LAT}]: " a; read -rp "longitude [${LON}]: " b
+      LAT=${a:-$LAT}; LON=${b:-$LON}; save; [[ $MODE == auto ]] && apply ;;
+  esac
+done

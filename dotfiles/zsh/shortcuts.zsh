@@ -27,6 +27,7 @@ alias cts='incus list'               # list containers
 alias vms='virsh -c qemu:///system list --all'
 # lab : fzf menu for Incus + QEMU (start/stop/shell/snapshot/console)
 # net : fzf menu for Wi-Fi / LAN / WireGuard
+# nightlight : fzf menu for the screen tint (off / auto / on, warmth, which monitors)
 
 # ── Network ─────────────────────────────────────────────────────────
 alias wgup='sudo systemctl start wg-quick-wg0'
@@ -40,8 +41,8 @@ alias dots='git --git-dir=$HOME/.dotfiles --work-tree=$HOME'
 
 # ── NixOS ───────────────────────────────────────────────────────────
 # nrs (already defined): flake update + switch
-alias nrb='(cd /etc/nixos && sudo git add -A && sudo nixos-rebuild boot --flake .#transprideworkload)'   # apply on next boot
-alias nrt='(cd /etc/nixos && sudo git add -A && sudo nixos-rebuild test --flake .#transprideworkload)'   # try now, not saved
+alias nrb='(cd /etc/nixos && sudo git add -A && sudo nixos-rebuild boot --flake .#mizukioverflow)'   # apply on next boot
+alias nrt='(cd /etc/nixos && sudo git add -A && sudo nixos-rebuild test --flake .#mizukioverflow)'   # try now, not saved
 # upd : check NixOS flake + Flatpak updates, preview, apply (fzf menu)
 alias ngc='sudo nix-collect-garbage --delete-older-than 14d'
 
@@ -70,6 +71,7 @@ shortcuts() {
     "ct <name>"     "shell in any Incus container (tab-completes)" \
     "lab"           "menu: containers & VMs" \
     "net"           "menu: Wi-Fi / LAN / WireGuard" \
+    "nightlight"    "menu: night light off / auto / on, warmth, monitors   ${d}(nightlight toggle)${r}" \
     "wgup / wgdown" "WireGuard on / off   ${d}(wgs = status)${r}" \
     "nrs / nrb"     "NixOS rebuild now / on next boot" \
     "upd"           "check updates: flake + flatpak, preview & apply (upd -c = check only)" \

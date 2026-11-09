@@ -173,8 +173,9 @@ bindsym --to-code $mod+Shift+v exec cliphist list | rofi -dmenu -i -p "󰅍" -di
 # Volume pop-up (SwayOSD) — vol.sh falls back to plain wpctl if it isn't running
 exec swayosd-server
 
-# Night light: warmer screen after sunset in Nonthaburi
-exec wlsunset -l 13.86 -L 100.51 -t 4000 -T 6500
+# Night light — mode saved by `nightlight` (off / auto / on)
+exec ~/.local/bin/nightlight apply
+
 
 # Gaps between tiled windows (none when a window is alone)
 gaps inner 6
