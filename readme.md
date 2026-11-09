@@ -1,6 +1,6 @@
 # nixos-config
 
-NixOS configuration and dotfiles for `transprideworkload`, a desktop workstation
+NixOS configuration and dotfiles for `mizukioverflow`, a desktop workstation
 running sway on Wayland.
 
 <img width="1918" height="1080" alt="image" src="https://github.com/user-attachments/assets/f4585506-1ac4-42e7-8ce0-d12aebda0d43" />
@@ -54,7 +54,7 @@ nixos-config/
 │   ├── desktop.nix             # sway, portals, fonts, theming
 │   └── gaming.nix              # steam, gamemode, lact, tablet, app compat
 ├── hosts/
-│   └── transprideworkload/     # per-host
+│   └── mizukioverflow/         # per-host
 └── dotfiles/
     ├── alacritty/              # terminal config
     ├── cava/                   # audio visualizer
@@ -71,7 +71,7 @@ nixos-config/
 System configuration is applied with:
 
 ```
-sudo nixos-rebuild switch --flake /etc/nixos#transprideworkload
+sudo nixos-rebuild switch --flake /etc/nixos#mizukioverflow
 ```
 
 (aliased to `nrs` in the config).

@@ -8,7 +8,7 @@
     };
   };
   outputs = { self, nixpkgs, nix-index-database, ... }: {
-    nixosConfigurations.transprideworkload = nixpkgs.lib.nixosSystem {
+    nixosConfigurations.mizukioverflow = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
         ./configuration.nix

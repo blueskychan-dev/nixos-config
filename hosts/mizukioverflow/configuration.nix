@@ -33,7 +33,7 @@
   powerManagement.cpuFreqGovernor = "performance";
 
   # Networking
-  networking.hostName = "transprideworkload";
+  networking.hostName = "mizukioverflow";
   networking.networkmanager.enable = true;
 
   # Locale
@@ -66,7 +66,7 @@
   programs.zsh.enable = true;
   environment.shells = with pkgs; [ zsh ];
   environment.shellAliases = {
-    nrs = "sudo nixos-rebuild switch --flake /etc/nixos#transprideworkload";
+    nrs = "sudo nixos-rebuild switch --flake /etc/nixos#mizukioverflow";
     nixos-edit = "sudo nano /etc/nixos/configuration.nix";
   };
 
